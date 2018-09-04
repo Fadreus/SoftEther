@@ -661,7 +661,7 @@ CT_b_support_special_listener	VPN over ICMP および VPN over DNS 接続の受�
 CT_b_support_redirect_url_acl	アクセスリストで HTTP の URL リダイレクト機能をサポート
 CT_b_is_in_vm			VM (仮想マシン) 内で動作中
 CT_b_support_azure		VPN Azure 機能が利用可能
-CT_b_support_intel_aes	Intel CPU AES Acceleration (AES-NI) が動作中
+CT_b_support_aes_ni	CPU AES Acceleration (AES-NI) が動作中
 CT_b_using_selow_driver	SoftEther 軽量カーネルモード Ethernet ドライバを使用中
 CT_b_support_vgs		VPN Gate サービス サーバー機能が利用可能
 CT_b_support_vgs_in_client	VPN Gate サービス サーバー機能 (VPN Client 統合)
@@ -2317,7 +2317,6 @@ S_RETRY_NUM_2			回
 S_RETRY_SPAN_1			再接続間隔(&K):
 S_RETRY_SPAN_2			秒
 R_INFINITE				無限に再接続を試行する (常時接続) (&I)
-R_NOTLS1				TLS &1.0 を使用しない
 B_DETAIL				高度な通信設定(&N)...
 IDOK					&OK
 IDCANCEL				キャンセル
@@ -4361,6 +4360,7 @@ CMD_ACCOUNT_COLUMN_PROXY_PORT		プロキシサーバーのポート番号
 CMD_ACCOUNT_COLUMN_PROXY_USERNAME	プロキシサーバーのユーザー名
 CMD_ACCOUNT_COLUMN_SERVER_CERT_USE	サーバー証明書の検証
 CMD_ACCOUNT_COLUMN_SERVER_CERT_NAME	登録されているサーバー固有証明書
+CMD_ACCOUNT_COLUMN_RETRY_ON_SERVER_CERT	Retry on Untrusted Server Certificate
 CMD_ACCOUNT_COLUMN_DEVICE_NAME		接続に使用するデバイス名
 CMD_ACCOUNT_COLUMN_AUTH_TYPE		認証の種類
 CMD_ACCOUNT_COLUMN_AUTH_USERNAME	ユーザー名
@@ -4671,6 +4671,21 @@ CMD_ServerCipherSet_Args	ServerCipherSet [name]
 CMD_ServerCipherSet_[name]	設定するる暗号化および電子署名アルゴリズムを指定します。使用可能なアルゴリズムの一覧は、ServerCipherGet コマンドで取得することができます。
 CMD_ServerCipherSet_PROMPT_NAME	指定する暗号化アルゴリズム名: 
 
+# TUNDownOnDisconnectEnable command
+CMD_TUNDownOnDisconnectEnable	Enable the Turn TUN Interface Down on Client Disconnect Function.
+CMD_TUNDownOnDisconnectEnable_Help	This allows you to enable Turn TUN Interface Down on Client Disconnect Function.
+CMD_TUNDownOnDisconnectEnable_Args	TUNDownOnDisconnectEnable
+
+# TUNDownOnDisconnectDisable command
+CMD_TUNDownOnDisconnectDisable	Disable the Turn TUN Interface Down on Client Disconnect Function.
+CMD_TUNDownOnDisconnectDisable_Help	This allows you to disable Turn TUN Interface Down on Client Disconnect Function.
+CMD_TUNDownOnDisconnectDisable_Args	TUNDownOnDisconnectDisable
+
+# TUNDownOnDisconnectGet command
+CMD_TUNDownOnDisconnectGet		Get status of the Turn TUN Interface Down on Client Disconnect Function.
+CMD_TUNDownOnDisconnectGet_Help	This allows you to get status of the Turn TUN Interface Down on Client Disconnect Function.
+CMD_TUNDownOnDisconnectGet_Args	TUNDownOnDisconnectGet
+CMD_TUNDownOnDisconnectGet_COLUMN1	Put TUN down on disconnect
 
 # KeepEnable コマンド
 CMD_KeepEnable			インターネット接続の維持機能の有効化
@@ -6625,6 +6640,20 @@ CMD_AccountServerCertDisable	接続設定のサーバー証明書の検証オプ
 CMD_AccountServerCertDisable_Help	VPN Client に登録されている接続設定を指定し、その接続設定が VPN Server に対して接続する際に、接続先の VPN Server の提示する SSL 証明書が信頼できるかどうか検査するオプションを無効にします。
 CMD_AccountServerCertDisable_Args	AccountServerCertDisable [name]
 CMD_AccountServerCertDisable_[name]	設定を変更する接続設定の名前を指定します。
+
+
+# AccountRetryOnServerCertEnable command
+CMD_AccountRetryOnServerCertEnable	Enable VPN connection retry if server certificate is untrusted
+CMD_AccountRetryOnServerCertEnable_Help	When a VPN Connection Setting registered on the VPN Client is specified and that VPN Connection Setting connects to a VPN Server, use this to enable the option to retry connection if Server certificate cannot be trusted.
+CMD_AccountRetryOnServerCertEnable_Args	AccountRetryOnServerCertEnable [name]
+CMD_AccountRetryOnServerCertEnable_[name]	Specify the name of the VPN Connection Setting whose setting you want to change.
+
+
+# AccountRetryOnServerCertDisable command
+CMD_AccountRetryOnServerCertDisable	Enable VPN connection retry if server certificate is invalid
+CMD_AccountRetryOnServerCertDisable_Help	When a VPN Connection Setting registered on the VPN Client is specified and that VPN Connection Setting connects to a VPN Server, use this to disable the option to retry connection if Server certificate cannot be trusted.
+CMD_AccountRetryOnServerCertDisable_Args	AccountRetryOnServerCertEnable [name]
+CMD_AccountRetryOnServerCertDisable_[name]	Specify the name of the VPN Connection Setting whose setting you want to change.
 
 
 # AccountServerCertSet コマンド

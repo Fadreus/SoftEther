@@ -128,7 +128,7 @@ void RAND_Free_For_SoftEther();
 #define	DES_IV_SIZE					8			// DES IV size
 #define DES_BLOCK_SIZE				8			// DES block size
 #define DES3_KEY_SIZE				(8 * 3)		// 3DES key size
-#define RSA_KEY_SIZE				128			// RSA key size
+#define RSA_KEY_SIZE				1024		// RSA key size
 #define DH_KEY_SIZE					128			// DH key size
 #define	RSA_MIN_SIGN_HASH_SIZE		(15 + SHA1_HASH_SIZE)	// Minimum RSA hash size
 #define	RSA_SIGN_HASH_SIZE			(RSA_MIN_SIGN_HASH_SIZE)	// RSA hash size
@@ -359,6 +359,7 @@ struct CIPHER
 struct MD
 {
 	char Name[MAX_PATH];
+	bool isNullMd;
 	const struct evp_md_st *Md;
 	struct hmac_ctx_st *Ctx;
 	UINT Size;
@@ -452,7 +453,6 @@ BIO *P12ToBio(P12 *p12);
 BUF *P12ToBuf(P12 *p12);
 void FreePKCS12(PKCS12 *pkcs12);
 void FreeP12(P12 *p12);
-P12 *FileToP12W(wchar_t *filename);
 bool P12ToFileW(P12 *p12, wchar_t *filename);
 bool ParseP12(P12 *p12, X **x, K **k, char *password);
 bool IsEncryptedP12(P12 *p12);
@@ -466,7 +466,6 @@ void GetPrintNameFromName(wchar_t *str, UINT size, NAME *name);
 void GetAllNameFromX(wchar_t *str, UINT size, X *x);
 void GetAllNameFromName(wchar_t *str, UINT size, NAME *name);
 void GetAllNameFromNameEx(wchar_t *str, UINT size, NAME *name);
-void GetAllNameFromXEx(wchar_t *str, UINT size, X *x);
 BUF *BigNumToBuf(const BIGNUM *bn);
 BIGNUM *BinToBigNum(void *data, UINT size);
 X_SERIAL *CloneXSerial(X_SERIAL *src);
@@ -487,10 +486,7 @@ UINT RsaPublicSize(K *k);
 BUF *RsaPublicToBuf(K *k);
 
 DES_KEY_VALUE *DesNewKeyValue(void *value);
-DES_KEY_VALUE *DesRandKeyValue();
 void DesFreeKeyValue(DES_KEY_VALUE *v);
-DES_KEY *Des3NewKey(void *k1, void *k2, void *k3);
-void Des3FreeKey(DES_KEY *k);
 void Des3Encrypt2(void *dest, void *src, UINT size, DES_KEY_VALUE *k1, DES_KEY_VALUE *k2, DES_KEY_VALUE *k3, void *ivec);
 void Des3Decrypt2(void *dest, void *src, UINT size, DES_KEY_VALUE *k1, DES_KEY_VALUE *k2, DES_KEY_VALUE *k3, void *ivec);
 void Sha(UINT sha_type, void *dst, void *src, UINT size);
@@ -500,7 +496,6 @@ void Sha2_384(void *dst, void *src, UINT size);
 void Sha2_512(void *dst, void *src, UINT size);
 
 void Md5(void *dst, void *src, UINT size);
-void MacSha1(void *dst, void *key, UINT key_size, void *data, UINT data_size);
 void DesEncrypt(void *dest, void *src, UINT size, DES_KEY_VALUE *k, void *ivec);
 void DesDecrypt(void *dest, void *src, UINT size, DES_KEY_VALUE *k, void *ivec);
 void DesEcbEncrypt(void *dst, void *src, void *key_7bytes);
@@ -522,13 +517,7 @@ void AesFreeKey(AES_KEY_VALUE *k);
 void AesEncrypt(void *dest, void *src, UINT size, AES_KEY_VALUE *k, void *ivec);
 void AesDecrypt(void *dest, void *src, UINT size, AES_KEY_VALUE *k, void *ivec);
 
-bool IsIntelAesNiSupported();
-void CheckIfIntelAesNiSupportedInit();
-
-#ifdef	USE_INTEL_AESNI_LIBRARY
-void AesEncryptWithIntel(void *dest, void *src, UINT size, AES_KEY_VALUE *k, void *ivec);
-void AesDecryptWithIntel(void *dest, void *src, UINT size, AES_KEY_VALUE *k, void *ivec);
-#endif	// USE_INTEL_AESNI_LIBRARY
+bool IsAesNiSupported();
 
 void OpenSSL_InitLock();
 void OpenSSL_FreeLock();
@@ -550,8 +539,6 @@ void Enc_tls1_PRF(unsigned char *label, int label_len, const unsigned char *sec,
 
 void HMacSha1(void *dst, void *key, UINT key_size, void *data, UINT data_size);
 void HMacMd5(void *dst, void *key, UINT key_size, void *data, UINT data_size);
-
-void DisableIntelAesAccel();
 
 int GetSslClientCertIndex();
 

@@ -217,7 +217,6 @@ struct SESSION
 	UINT64 NextConnectionTime;		// Time to put next additional connection
 	IP ServerIP;					// IP address of the server
 	bool ClientModeAndUseVLan;		// Use a virtual LAN card in client mode
-	bool UseSSLDataEncryption;		// Use SSL data encryption
 	LOCK *TrafficLock;				// Traffic data lock
 	LINK *Link;						// A reference to the link object
 	SNAT *SecureNAT;				// A reference to the SecureNAT object
@@ -255,7 +254,6 @@ struct SESSION
 	char SessionKeyStr[64];			// Session key string
 	UINT MaxConnection;				// Maximum number of concurrent TCP connections
 	bool UseEncrypt;				// Use encrypted communication
-	bool UseFastRC4;				// Use high speed RC4 encryption
 	bool UseCompress;				// Use data compression
 	bool HalfConnection;			// Half connection mode
 	bool QoS;						// VoIP / QoS
@@ -324,6 +322,8 @@ struct SESSION
 	// Measures for D-Link bug
 	UINT64 LastDLinkSTPPacketSendTick;	// Last D-Link STP packet transmission time
 	UCHAR LastDLinkSTPPacketDataHash[MD5_SIZE];	// Last D-Link STP packet hash
+
+	bool *NicDownOnDisconnect;		// Pointer to client configuration parameter. NULL for non-clients.
 };
 
 // Password dialog
@@ -399,8 +399,8 @@ struct UI_CHECKCERT
 
 
 // Function prototype
-SESSION *NewClientSessionEx(CEDAR *cedar, CLIENT_OPTION *option, CLIENT_AUTH *auth, PACKET_ADAPTER *pa, struct ACCOUNT *account);
-SESSION *NewClientSession(CEDAR *cedar, CLIENT_OPTION *option, CLIENT_AUTH *auth, PACKET_ADAPTER *pa);
+SESSION *NewClientSessionEx(CEDAR *cedar, CLIENT_OPTION *option, CLIENT_AUTH *auth, PACKET_ADAPTER *pa, struct ACCOUNT *account, bool *NicDownOnDisconnect);
+SESSION *NewClientSession(CEDAR *cedar, CLIENT_OPTION *option, CLIENT_AUTH *auth, PACKET_ADAPTER *pa, bool *NicDownOnDisconnect);
 SESSION *NewRpcSession(CEDAR *cedar, CLIENT_OPTION *option);
 SESSION *NewRpcSessionEx(CEDAR *cedar, CLIENT_OPTION *option, UINT *err, char *client_str);
 SESSION *NewRpcSessionEx2(CEDAR *cedar, CLIENT_OPTION *option, UINT *err, char *client_str, void *hWnd);
@@ -413,15 +413,12 @@ void StopSession(SESSION *s);
 void StopSessionEx(SESSION *s, bool no_wait);
 bool SessionConnect(SESSION *s);
 bool ClientConnect(CONNECTION *c);
-int CompareSession(void *p1, void *p2);
 PACKET_ADAPTER *NewPacketAdapter(PA_INIT *init, PA_GETCANCEL *getcancel, PA_GETNEXTPACKET *getnext,
 								 PA_PUTPACKET *put, PA_FREE *free);
 void FreePacketAdapter(PACKET_ADAPTER *pa);
 void SessionMain(SESSION *s);
 void NewSessionKey(CEDAR *cedar, UCHAR *session_key, UINT *session_key_32);
 SESSION *GetSessionFromKey(CEDAR *cedar, UCHAR *session_key);
-SESSION *GetSessionFromKey32(CEDAR *cedar, UINT key32);
-void DebugPrintSessionKey(UCHAR *session_key);
 bool IsIpcMacAddress(UCHAR *mac);
 void ClientAdditionalConnectChance(SESSION *s);
 void SessionAdditionalConnect(SESSION *s);

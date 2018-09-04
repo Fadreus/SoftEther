@@ -1,6 +1,6 @@
 # SoftEther VPN
 
-[![AppVeyor build status](https://ci.appveyor.com/api/projects/status/github/softethervpn/softethervpn?branch=master&svg=true)](https://ci.appveyor.com/project/softethervpn/softethervpn) [![Travis CI build status](https://travis-ci.org/SoftEtherVPN/SoftEtherVPN.svg?branch=master)](https://travis-ci.org/SoftEtherVPN/SoftEtherVPN)
+[![AppVeyor build status](https://ci.appveyor.com/api/projects/status/github/softethervpn/softethervpn?branch=master&svg=true)](https://ci.appveyor.com/project/softethervpn/softethervpn) [![Travis CI build status](https://travis-ci.org/SoftEtherVPN/SoftEtherVPN.svg?branch=master)](https://travis-ci.org/SoftEtherVPN/SoftEtherVPN) [![Coverity Scan Build Status](https://scan.coverity.com/projects/16304/badge.svg)](https://scan.coverity.com/projects/softethervpn-softethervpn)
 
 - [SoftEther VPN](#softether-vpn)
 - [BOARD MEMBERS OF THIS REPOSITORY](#board-members-of-this-repository)
@@ -70,6 +70,11 @@ https://github.com/zulzardi
 Alex Maslakov (Since Nov 6, 2017)
 https://github.com/GildedHonour
 
+Davide Beatrici (Since Jul 21, 2018)
+https://github.com/davidebeatrici
+
+Ilya Shipitsin (Since Jul 21, 2018)
+https://github.com/chipitsine
 
 
 # SOFTETHER VPN ADVANTAGES
@@ -145,10 +150,17 @@ on all the following open-source repositories:
   - GitHub
     https://github.com/SoftEtherVPN/SoftEtherVPN/
 
-To fetch the source code from GitHub:
 ```
 $ git clone https://github.com/SoftEtherVPN/SoftEtherVPN.git
 ```
+
+  - GitLab (mirrored from GitHub)
+    https://gitlab.com/SoftEther/SoftEtherVPN/
+
+```
+$ git clone https://gitlab.com/SoftEther/SoftEtherVPN.git
+```
+
 We hope that you can reach one of the above URLs at least!
 
 

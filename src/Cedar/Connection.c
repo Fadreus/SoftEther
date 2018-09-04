@@ -659,11 +659,6 @@ void WriteSendFifo(SESSION *s, TCPSOCK *ts, void *data, UINT size)
 		return;
 	}
 
-	if (s->UseFastRC4)
-	{
-		Encrypt(ts->SendKey, data, data, size);
-	}
-
 	WriteFifo(ts->SendFifo, data, size);
 }
 
@@ -676,11 +671,6 @@ void WriteRecvFifo(SESSION *s, TCPSOCK *ts, void *data, UINT size)
 		return;
 	}
 
-	if (s->UseFastRC4)
-	{
-		Encrypt(ts->RecvKey, data, data, size);
-	}
-
 	WriteFifo(ts->RecvFifo, data, size);
 }
 
@@ -688,14 +678,14 @@ void WriteRecvFifo(SESSION *s, TCPSOCK *ts, void *data, UINT size)
 UINT TcpSockRecv(SESSION *s, TCPSOCK *ts, void *data, UINT size)
 {
 	// Receive
-	return Recv(ts->Sock, data, size, s->UseSSLDataEncryption);
+	return Recv(ts->Sock, data, size, s->UseEncrypt);
 }
 
 // TCP socket send
 UINT TcpSockSend(SESSION *s, TCPSOCK *ts, void *data, UINT size)
 {
 	// Transmission
-	return Send(ts->Sock, data, size, s->UseSSLDataEncryption);
+	return Send(ts->Sock, data, size, s->UseEncrypt);
 }
 
 // Send the data as UDP packet
@@ -1181,7 +1171,7 @@ void ConnectionSend(CONNECTION *c, UINT64 now)
 			UINT j;
 			QUEUE *q;
 
-			if (s->UdpAccel != NULL)
+			if (s != NULL && s->UdpAccel != NULL)
 			{
 				UdpAccelSetTick(s->UdpAccel, now);
 			}
@@ -2867,34 +2857,6 @@ TCPSOCK *NewTcpSock(SOCK *s)
 	return ts;
 }
 
-// Set a encryption key for the TCP socket
-void InitTcpSockRc4Key(TCPSOCK *ts, bool server_mode)
-{
-	RC4_KEY_PAIR *pair;
-	CRYPT *c1, *c2;
-	// Validate arguments
-	if (ts == NULL)
-	{
-		return;
-	}
-
-	pair = &ts->Rc4KeyPair;
-
-	c1 = NewCrypt(pair->ClientToServerKey, sizeof(pair->ClientToServerKey));
-	c2 = NewCrypt(pair->ServerToClientKey, sizeof(pair->ServerToClientKey));
-
-	if (server_mode)
-	{
-		ts->RecvKey = c1;
-		ts->SendKey = c2;
-	}
-	else
-	{
-		ts->SendKey = c1;
-		ts->RecvKey = c2;
-	}
-}
-
 // Release of TCP socket
 void FreeTcpSock(TCPSOCK *ts)
 {
@@ -3658,9 +3620,6 @@ CONNECTION *NewClientConnectionEx(SESSION *s, char *client_str, UINT client_ver,
 	// Server name and port number
 	StrCpy(c->ServerName, sizeof(c->ServerName), s->ClientOption->Hostname);
 	c->ServerPort = s->ClientOption->Port;
-
-	// TLS 1.0 using flag
-	c->DontUseTls1 = s->ClientOption->NoTls1;
 
 	// Create queues
 	c->ReceivedBlocks = NewQueue();

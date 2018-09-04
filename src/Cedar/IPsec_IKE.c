@@ -1662,7 +1662,6 @@ void StartQuickMode(IKE_SERVER *ike, IKE_CLIENT *c)
 		UINT spi;
 		UINT spi_be;
 		UCHAR hash1[IKE_MAX_HASH_SIZE];
-		UCHAR zero = 0;
 		DH_CTX *dh = NULL;
 		UCHAR dummy_hash_data[IKE_MAX_HASH_SIZE];
 
@@ -2792,7 +2791,7 @@ IPSECSA *NewIPsecSa(IKE_SERVER *ike, IKE_CLIENT *c, IKE_SA *ike_sa, bool initiat
 	// Set the expiration time
 	if (setting->LifeSeconds != 0)
 	{
-		UINT64 span = (UINT64)(setting->LifeSeconds * 1000) + (UINT64)IKE_SOFT_EXPIRES_MARGIN;
+		UINT64 span = setting->LifeSeconds * (UINT64)1000 + (UINT64)IKE_SOFT_EXPIRES_MARGIN;
 		sa->ExpiresHardTick = ike->Now + span;
 		sa->ExpiresSoftTick = ike->Now + span;
 		//sa->ExpiresSoftTick = ike->Now + (UINT64)5000;
@@ -3842,6 +3841,10 @@ bool IkeIsVendorIdExists(IKE_PACKET *p, char *str)
 	for (i = 0;i < num;i++)
 	{
 		IKE_PACKET_PAYLOAD *payload = IkeGetPayload(p->PayloadList, IKE_PAYLOAD_VENDOR_ID, i);
+		if (payload == NULL)
+		{
+			return false;
+		}
 
 		if (CompareBuf(payload->Payload.VendorId.Data, buf))
 		{
@@ -4325,7 +4328,7 @@ IKE_CLIENT *SearchOrCreateNewIkeClientForIkePacket(IKE_SERVER *ike, IP *client_i
 {
 	IKE_CLIENT *c;
 	// Validate arguments
-	if (ike == NULL || pr == NULL || client_ip == NULL || server_ip == NULL || client_port == 0 || server_port == 0 || pr == NULL)
+	if (ike == NULL || pr == NULL || client_ip == NULL || server_ip == NULL || client_port == 0 || server_port == 0)
 	{
 		return NULL;
 	}

@@ -662,7 +662,7 @@ CT_b_support_special_listener VPN over ICMP 및 VPN over DNS 연결 접수
 CT_b_support_redirect_url_acl 액세스 목록에서 HTTP의 URL 리디렉션 기능을 지원
 CT_b_is_in_vm VM(가상 머신)에서 실행중인
 CT_b_support_azure VPN Azure 기능을 사용할 수
-CT_b_support_intel_aes Intel CPU AES Acceleration (AES-NI)가 동작 중
+CT_b_support_aes_ni CPU AES Acceleration (AES-NI)가 동작 중
 CT_b_using_selow_driver SoftEther 경량 커널 모드 Ethernet 드라이버를 사용 중
 CT_b_support_vgs VPN Gate 서비스 서버 기능을 사용할 수
 CT_b_support_vgs_in_client VPN Gate 서비스 서버 기능 (VPN Client 통합)
@@ -2312,7 +2312,6 @@ S_RETRY_NUM_2 회
 S_RETRY_SPAN_1 다시 연결 간격 (&K):
 S_RETRY_SPAN_2 초
 R_INFINITE 무한 재 연결을 시도하는 (상시 접속) (&I)
-R_NOTLS1 TLS 및 1.0을 사용하지
 B_DETAIL 고급 통신 설정 (&N)...
 IDOK & OK
 IDCANCEL 취소
@@ -4356,6 +4355,7 @@ CMD_ACCOUNT_COLUMN_PROXY_PORT 프록시 서버의 포트 번호
 CMD_ACCOUNT_COLUMN_PROXY_USERNAME 프록시 서버의 사용자 이름
 CMD_ACCOUNT_COLUMN_SERVER_CERT_USE 서버 인증서 확인
 CMD_ACCOUNT_COLUMN_SERVER_CERT_NAME 등록 된 서버 별 인증서
+CMD_ACCOUNT_COLUMN_RETRY_ON_SERVER_CERT	Retry on Untrusted Server Certificate
 CMD_ACCOUNT_COLUMN_DEVICE_NAME 연결에 사용할 장치 이름
 CMD_ACCOUNT_COLUMN_AUTH_TYPE 인증의 종류
 CMD_ACCOUNT_COLUMN_AUTH_USERNAME 사용자 이름
@@ -4666,6 +4666,21 @@ CMD_ServerCipherSet_Args ServerCipherSet [name]
 CMD_ServerCipherSet_ [name] 설정해야 루루 암호화 및 전자 서명 알고리즘을 지정합니다. 사용 가능한 알고리즘 목록은 ServerCipherGet 명령에서 얻을 수 있습니다.
 CMD_ServerCipherSet_PROMPT_NAME 지정하는 암호화 알고리즘 명:
 
+# TUNDownOnDisconnectEnable command
+CMD_TUNDownOnDisconnectEnable	Enable the Turn TUN Interface Down on Client Disconnect Function.
+CMD_TUNDownOnDisconnectEnable_Help	This allows you to enable Turn TUN Interface Down on Client Disconnect Function.
+CMD_TUNDownOnDisconnectEnable_Args	TUNDownOnDisconnectEnable
+
+# TUNDownOnDisconnectDisable command
+CMD_TUNDownOnDisconnectDisable	Disable the Turn TUN Interface Down on Client Disconnect Function.
+CMD_TUNDownOnDisconnectDisable_Help	This allows you to disable Turn TUN Interface Down on Client Disconnect Function.
+CMD_TUNDownOnDisconnectDisable_Args	TUNDownOnDisconnectDisable
+
+# TUNDownOnDisconnectGet command
+CMD_TUNDownOnDisconnectGet		Get status of the Turn TUN Interface Down on Client Disconnect Function.
+CMD_TUNDownOnDisconnectGet_Help	This allows you to get status of the Turn TUN Interface Down on Client Disconnect Function.
+CMD_TUNDownOnDisconnectGet_Args	TUNDownOnDisconnectGet
+CMD_TUNDownOnDisconnectGet_COLUMN1	Put TUN down on disconnect
 
 # KeepEnable 명령
 CMD_KeepEnable 인터넷 연결 유지 기능 활성화
@@ -6618,6 +6633,20 @@ CMD_AccountServerCertDisable 연결 설정 서버 인증서 검증 옵션 비활
 CMD_AccountServerCertDisable_Help VPN Client에 등록되어있는 연결 설정을 지정하고 연결 설정 VPN Server에 연결할 때 연결하려는 VPN Server가 제시하는 SSL 인증서를 신뢰할 수 있는지 검사하는 옵션을 해제 합니다.
 CMD_AccountServerCertDisable_Args AccountServerCertDisable [name]
 CMD_AccountServerCertDisable_ [name] 설정을 변경하려면 연결 설정의 이름을 지정합니다.
+
+
+# AccountRetryOnServerCertEnable command
+CMD_AccountRetryOnServerCertEnable	Enable VPN connection retry if server certificate is untrusted
+CMD_AccountRetryOnServerCertEnable_Help	When a VPN Connection Setting registered on the VPN Client is specified and that VPN Connection Setting connects to a VPN Server, use this to enable the option to retry connection if Server certificate cannot be trusted.
+CMD_AccountRetryOnServerCertEnable_Args	AccountRetryOnServerCertEnable [name]
+CMD_AccountRetryOnServerCertEnable_[name]	Specify the name of the VPN Connection Setting whose setting you want to change.
+
+
+# AccountRetryOnServerCertDisable command
+CMD_AccountRetryOnServerCertDisable	Enable VPN connection retry if server certificate is invalid
+CMD_AccountRetryOnServerCertDisable_Help	When a VPN Connection Setting registered on the VPN Client is specified and that VPN Connection Setting connects to a VPN Server, use this to disable the option to retry connection if Server certificate cannot be trusted.
+CMD_AccountRetryOnServerCertDisable_Args	AccountRetryOnServerCertEnable [name]
+CMD_AccountRetryOnServerCertDisable_[name]	Specify the name of the VPN Connection Setting whose setting you want to change.
 
 
 # AccountServerCertSet 명령

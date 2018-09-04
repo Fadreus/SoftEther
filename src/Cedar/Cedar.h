@@ -135,10 +135,18 @@
 
 
 // Version number
-#define	CEDAR_VER					501
+#ifndef	CEDAR_VERSION_MAJOR
+#define	CEDAR_VERSION_MAJOR		0
+#endif	// CEDAR_VERSION_MAJOR
 
-// Build Number
-#define	CEDAR_BUILD					9657
+#ifndef	CEDAR_VERSION_MINOR
+#define	CEDAR_VERSION_MINOR		0
+#endif	// CEDAR_VER_MINOR
+
+// Build number
+#ifndef	CEDAR_VERSION_BUILD
+#define	CEDAR_VERSION_BUILD		0
+#endif	// CEDAR_VERSION_BUILD
 
 // Beta number
 //#define	BETA_NUMBER					3
@@ -148,21 +156,38 @@
 
 // Specify the name of the person in charge building
 #ifndef	BUILDER_NAME
-#define	BUILDER_NAME		"yagi"
+#define	BUILDER_NAME			"Unknown"
 #endif	// BUILDER_NAME
 
 // Specify the location to build
 #ifndef	BUILD_PLACE
-#define	BUILD_PLACE			"pc37"
+#define	BUILD_PLACE				"Unknown"
 #endif	// BUILD_PLACE
 
 // Specifies the build date
-#define	BUILD_DATE_Y		2018
-#define	BUILD_DATE_M		1
-#define	BUILD_DATE_D		14
-#define	BUILD_DATE_HO		0
-#define	BUILD_DATE_MI		36
-#define	BUILD_DATE_SE		20
+#ifndef	BUILD_DATE_Y
+#define	BUILD_DATE_Y			1970
+#endif	// BUILD_DATE_Y
+
+#ifndef	BUILD_DATE_M
+#define	BUILD_DATE_M			1
+#endif	// BUILD_DATE_M
+
+#ifndef	BUILD_DATE_D
+#define	BUILD_DATE_D			1
+#endif	// BUILD_DATE_D
+
+#ifndef	BUILD_DATE_HO
+#define	BUILD_DATE_HO			0
+#endif	// BUILD_DATE_HO
+
+#ifndef	BUILD_DATE_MI
+#define	BUILD_DATE_MI			0
+#endif	// BUILD_DATE_MI
+
+#ifndef	BUILD_DATE_SE
+#define	BUILD_DATE_SE			0
+#endif	// BUILD_DATE_SE
 
 // Tolerable time difference
 #define	ALLOW_TIMESTAMP_DIFF		(UINT64)(3 * 24 * 60 * 60 * 1000)
@@ -744,20 +769,14 @@
 // 
 //////////////////////////////////////////////////////////////////////
 
+#ifndef	UNIX_BSD
 #define	TAP_FILENAME_1				"/dev/net/tun"
 #define	TAP_FILENAME_2				"/dev/tun"
-#ifdef	UNIX_MACOS
-#ifdef	NO_VLAN
-#define	TAP_MACOS_FILENAME			"/dev/tap0"
-#else	// NO_VLAN
-#define	TAP_MACOS_FILENAME			"tap"
-#endif	// NO_VLAN
-#define	TAP_MACOS_DIR				"/dev/"
-#define	TAP_MACOS_NUMBER			(16)
-#endif	// UNIX_MACOS
-
-
-
+#else	// UNIX_BSD
+#define	TAP_NAME					"tap"
+#define	TAP_DIR						"/dev/"
+#define	TAP_MAX						(512)
+#endif	// UNIX_BSD
 
 
 #define	LICENSE_EDITION_VPN3_NO_LICENSE					0		// Without license
@@ -1162,9 +1181,6 @@ typedef struct CEDAR
 // Web UI
 #include <Cedar/WebUI.h>
 
-// VPN Gate Plugin DLL
-#include <VGate/VGateCommon.h>
-
 // VPN Gate Main Implementation
 #include <Cedar/VG.h>
 
@@ -1214,7 +1230,6 @@ void DelHubEx(CEDAR *c, HUB *h, bool no_lock);
 void StopAllHub(CEDAR *c);
 void StopAllConnection(CEDAR *c);
 void AddConnection(CEDAR *cedar, CONNECTION *c);
-UINT GetUnestablishedConnections(CEDAR *cedar);
 void DelConnection(CEDAR *cedar, CONNECTION *c);
 void SetCedarCipherList(CEDAR *cedar, char *name);
 void InitCedar();
@@ -1228,11 +1243,8 @@ void InitNetSvcList(CEDAR *cedar);
 void FreeNetSvcList(CEDAR *cedar);
 int CompareNetSvc(void *p1, void *p2);
 char *GetSvcName(CEDAR *cedar, bool udp, UINT port);
-void InitHiddenPassword(char *str, UINT size);
-bool IsHiddenPasswordChanged(char *str);
 UINT64 GetTrafficPacketSize(TRAFFIC *t);
 UINT64 GetTrafficPacketNum(TRAFFIC *t);
-void EnableDebugLog(CEDAR *c);
 void StartCedarLog();
 void StopCedarLog();
 int CompareNoSslList(void *p1, void *p2);
@@ -1242,16 +1254,15 @@ bool AddNoSsl(CEDAR *c, IP *ip);
 void DecrementNoSsl(CEDAR *c, IP *ip, UINT num_dec);
 void DeleteOldNoSsl(CEDAR *c);
 NON_SSL *SearchNoSslList(CEDAR *c, IP *ip);
-bool IsInNoSsl(CEDAR *c, IP *ip);
 void FreeTinyLog(TINY_LOG *t);
 void WriteTinyLog(TINY_LOG *t, char *str);
 TINY_LOG *NewTinyLog();
 void GetWinVer(RPC_WINVER *v);
 bool IsSupportedWinVer(RPC_WINVER *v);
-bool IsLaterBuild(CEDAR *c, UINT64 t);
 SOCK *GetInProcListeningSock(CEDAR *c);
 SOCK *GetReverseListeningSock(CEDAR *c);
 void GetCedarVersion(char *tmp, UINT size);
+UINT GetCedarVersionNumber();
 UINT64 GetCurrentBuildDate();
 void CedarAddCurrentTcpQueueSize(CEDAR *c, int diff);
 UINT CedarGetCurrentTcpQueueSize(CEDAR *c);

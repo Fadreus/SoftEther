@@ -123,6 +123,7 @@
 
 #define	_WIN32_WINNT		0x0502
 #define	WINVER				0x0502
+#define	SECURITY_WIN32
 #include <winsock2.h>
 #include <windows.h>
 #include <Iphlpapi.h>
@@ -136,6 +137,7 @@
 #include <psapi.h>
 #include <wtsapi32.h>
 #include <Ntsecapi.h>
+#include <security.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -4417,7 +4419,7 @@ UINT CmMainWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, void *p
 					if (CmGetNumConnected(hWnd) == 0)
 					{
 						cm->Update = InitUpdateUi(_UU("PRODUCT_NAME_VPN_CMGR"), NAME_OF_VPN_CLIENT_MANAGER, NULL,
-							GetCurrentBuildDate(), CEDAR_BUILD, CEDAR_VER, ((cm->Client == NULL) ? NULL : cm->Client->ClientId),
+							GetCurrentBuildDate(), CEDAR_VERSION_BUILD, GetCedarVersionNumber(), ((cm->Client == NULL) ? NULL : cm->Client->ClientId),
 							true);
 					}
 				}
@@ -6240,6 +6242,7 @@ void CmExportAccount(HWND hWnd, wchar_t *account_name)
 		t.ClientAuth = a->ClientAuth;
 		t.StartupAccount = a->Startup;
 		t.CheckServerCert = a->CheckServerCert;
+		t.RetryOnServerCert = a->RetryOnServerCert;
 		t.ServerCert = a->ServerCert;
 		t.ClientOption->FromAdminPack = false;
 
@@ -6370,7 +6373,6 @@ void CmImportAccountMainEx(HWND hWnd, wchar_t *filename, bool overwrite)
 					t->ClientOption->RequireMonitorMode = old_option->RequireMonitorMode;
 					t->ClientOption->RequireBridgeRoutingMode = old_option->RequireBridgeRoutingMode;
 					t->ClientOption->DisableQoS = old_option->DisableQoS;
-					t->ClientOption->NoTls1 = old_option->NoTls1;
 
 					// Inherit the authentication data
 					CiFreeClientAuth(t->ClientAuth);
@@ -6379,6 +6381,7 @@ void CmImportAccountMainEx(HWND hWnd, wchar_t *filename, bool overwrite)
 					// Other Settings
 					t->StartupAccount = get.StartupAccount;
 					t->CheckServerCert = get.CheckServerCert;
+					t->RetryOnServerCert = get.RetryOnServerCert;
 					if (t->ServerCert != NULL)
 					{
 						FreeX(t->ServerCert);
@@ -6487,6 +6490,7 @@ void CmCopyAccount(HWND hWnd, wchar_t *account_name)
 		c.ServerCert = CloneX(a->ServerCert);
 	}
 	c.CheckServerCert = a->CheckServerCert;
+	c.RetryOnServerCert = a->RetryOnServerCert;
 	c.StartupAccount = false;		// Don't copy the startup attribute
 
 	CALL(hWnd, CcCreateAccount(cm->Client, &c));
@@ -6982,8 +6986,6 @@ void CmEditAccountDlgUpdate(HWND hWnd, CM_ACCOUNT *a)
 	}
 	a->ClientOption->RetryInterval = GetInt(hWnd, E_RETRY_SPAN);
 
-	a->ClientOption->NoTls1 = IsChecked(hWnd, R_NOTLS1);
-
 	// Information determining
 	if (UniStrLen(a->ClientOption->AccountName) == 0 && a->NatMode == false)
 	{
@@ -7436,8 +7438,6 @@ void CmEditAccountDlgInit(HWND hWnd, CM_ACCOUNT *a)
 		}
 	}
 	SetIntEx(hWnd, E_RETRY_SPAN, a->ClientOption->RetryInterval);
-
-	Check(hWnd, R_NOTLS1, a->ClientOption->NoTls1);
 
 	// Title
 	if (a->NatMode == false)
@@ -8897,6 +8897,7 @@ CM_ACCOUNT *CmGetExistAccountObject(HWND hWnd, wchar_t *account_name)
 	a = ZeroMalloc(sizeof(CM_ACCOUNT));
 	a->EditMode = true;
 	a->CheckServerCert = c.CheckServerCert;
+	a->RetryOnServerCert = c.RetryOnServerCert;
 	a->Startup = c.StartupAccount;
 	if (c.ServerCert != NULL)
 	{
@@ -8926,6 +8927,7 @@ CM_ACCOUNT *CmCreateNewAccountObject(HWND hWnd)
 	a = ZeroMalloc(sizeof(CM_ACCOUNT));
 	a->EditMode = false;
 	a->CheckServerCert = false;
+	a->RetryOnServerCert = false;
 	a->Startup = false;
 	a->ClientOption = ZeroMalloc(sizeof(CLIENT_OPTION));
 
@@ -11169,7 +11171,7 @@ void CmMainWindowOnInit(HWND hWnd)
 
 	UniStrCpy(cm->StatudBar1, sizeof(cm->StatudBar1), _UU("CM_TITLE"));
 	UniStrCpy(cm->StatudBar2, sizeof(cm->StatudBar2), _UU("CM_CONN_NO"));
-	UniFormat(cm->StatudBar3, sizeof(cm->StatudBar3), _UU("CM_PRODUCT_NAME"), CEDAR_BUILD);
+	UniFormat(cm->StatudBar3, sizeof(cm->StatudBar3), _UU("CM_PRODUCT_NAME"), CEDAR_VERSION_BUILD);
 
 	cm->Icon2 = LoadSmallIcon(ICO_SERVER_OFFLINE);
 	cm->Icon3 = LoadSmallIcon(ICO_VPN);

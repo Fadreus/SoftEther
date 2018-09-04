@@ -215,12 +215,6 @@ int PASCAL WinMain(HINSTANCE hInst, HINSTANCE hPrev, char *CmdLine, int CmdShow)
 #define	PROBE_DATA(data, size)
 #endif	// USE_PROBE
 
-// About Intel AES-NI Library
-#if	(defined(OS_WIN32) || (defined(UNIX_LINUX) && (defined(CPU_X86) || defined(CPU_X64))))
-// Supports only for Linux (x86 / x64) or Windows
-#define	USE_INTEL_AESNI_LIBRARY
-#endif
-
 // Determine the performance / memory strategy
 #if	(defined(CPU_X86) || defined(CPU_X64) || defined(CPU_X86_X64) || defined(CPU_SPARC) || defined(CPU_SPARC64) || defined(OS_WIN32) || defined(__amd64__) || defined(__amd64) || defined(__x86_64__) || defined(__x86_64) || defined(i386) || defined(__i386) || defined(__i386__) || defined(__ia64__) || defined(__IA64__) || defined(_IA64))
 #define	USE_STRATEGY_PERFORMACE
@@ -401,6 +395,7 @@ extern char *cmdline;
 extern wchar_t *uni_cmdline;
 extern bool g_little_endian;
 extern LOCK *tick_manual_lock;
+extern bool g_foreground;
 
 // Kernel state
 #define	NUM_KERNEL_STATUS	128
@@ -504,7 +499,6 @@ if (kernel_status_inited) {					\
 #define	KS_FREEFIFO_COUNT		37		// Number of times the FIFO object is deleted
 #define	KS_READ_FIFO_COUNT		38		// Number of calls ReadFifo
 #define	KS_WRITE_FIFO_COUNT		39		// Number of calls WriteFifo
-#define	KS_PEEK_FIFO_COUNT		40		// Number of calls PeekFifo
 // List related
 #define	KS_NEWLIST_COUNT		41		// Number of calls NewList
 #define	KS_FREELIST_COUNT		42		// Number of times the object LIST was deleted

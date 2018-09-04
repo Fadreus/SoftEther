@@ -659,7 +659,7 @@ CT_b_support_special_listener	VPN over ICMP and VPN over DNS is Supported
 CT_b_support_redirect_url_acl	HTTP URL Redirection in Access List is Supported
 CT_b_is_in_vm			Running on VM (Virtual Machine)
 CT_b_support_azure		VPN Azure is Supported
-CT_b_support_intel_aes	Intel CPU AES Acceleration (AES-NI) is Active
+CT_b_support_aes_ni	CPU AES Acceleration (AES-NI) is Active
 CT_b_using_selow_driver	SoftEther Lightweight Kernel-mode Ethernet Driver is Active
 CT_b_support_vgs		VPN Gate Service Server Functions are Supported
 CT_b_support_vgs_in_client	VPN Gate Service Server Functions (VPN Client integrated)
@@ -1072,7 +1072,7 @@ SVC_HIDE_TRAY_MSG		This will hide the tasktray icons when starting %S in user mo
 
 
 # Concerning services (UNIX)
-UNIX_SVC_HELP			%S service program\nCopyright (c) SoftEther VPN Project. All Rights Reserved.\n\n%S command usage:\n %S start  - Start the %S service.\n %S stop   - Stop the %S service if the service has been already started.\n\n
+UNIX_SVC_HELP			%S service program\nCopyright (c) SoftEther VPN Project. All Rights Reserved.\n\n%S command usage:\n %S start [--foreground] - Start the %S service. '--foreground' parameter prevents switching to daemon mode.\n %S stop   - Stop the %S service if the service has been already started.\n\n
 UNIX_SVC_STARTED		The %S service has been started.\n
 UNIX_SVC_STOPPING		Stopping the %S service ...\n
 UNIX_SVC_STOPPED		%S service has been stopped.\n
@@ -2312,7 +2312,6 @@ S_RETRY_NUM_2			times
 S_RETRY_SPAN_1			Reconnect Interval:
 S_RETRY_SPAN_2			seconds
 R_INFINITE				&Infinite Reconnects (Keep VPN Always Online)
-R_NOTLS1				Do not use TLS &1.0
 B_DETAIL				A&dvanced Settings...
 IDOK					&OK
 IDCANCEL				Cancel
@@ -4357,6 +4356,7 @@ CMD_ACCOUNT_COLUMN_PROXY_PORT		Proxy Server Port Number
 CMD_ACCOUNT_COLUMN_PROXY_USERNAME	Proxy Server User Name
 CMD_ACCOUNT_COLUMN_SERVER_CERT_USE	Verify Server Certificate
 CMD_ACCOUNT_COLUMN_SERVER_CERT_NAME	Registered Server Individual Certificate
+CMD_ACCOUNT_COLUMN_RETRY_ON_SERVER_CERT	Retry on Untrusted Server Certificate
 CMD_ACCOUNT_COLUMN_DEVICE_NAME		Device Name Used for Connection
 CMD_ACCOUNT_COLUMN_AUTH_TYPE		Authentication Type
 CMD_ACCOUNT_COLUMN_AUTH_USERNAME	User Name
@@ -4669,6 +4669,21 @@ CMD_ServerCipherSet_Args	ServerCipherSet [name]
 CMD_ServerCipherSet_[name]	This specifies the encrypted and electronic signature algorithm to set. You can obtain the list of usable algorithms by using the ServerCipherGet command.
 CMD_ServerCipherSet_PROMPT_NAME	Encrypted Algorithm Name to Specify: 
 
+# TUNDownOnDisconnectEnable command
+CMD_TUNDownOnDisconnectEnable	Enable the Turn TUN Interface Down on Client Disconnect Function.
+CMD_TUNDownOnDisconnectEnable_Help	This allows you to enable Turn TUN Interface Down on Client Disconnect Function.
+CMD_TUNDownOnDisconnectEnable_Args	TUNDownOnDisconnectEnable
+
+# TUNDownOnDisconnectDisable command
+CMD_TUNDownOnDisconnectDisable	Disable the Turn TUN Interface Down on Client Disconnect Function.
+CMD_TUNDownOnDisconnectDisable_Help	This allows you to disable Turn TUN Interface Down on Client Disconnect Function.
+CMD_TUNDownOnDisconnectDisable_Args	TUNDownOnDisconnectDisable
+
+# TUNDownOnDisconnectGet command
+CMD_TUNDownOnDisconnectGet		Get status of the Turn TUN Interface Down on Client Disconnect Function.
+CMD_TUNDownOnDisconnectGet_Help	This allows you to get status of the Turn TUN Interface Down on Client Disconnect Function.
+CMD_TUNDownOnDisconnectGet_Args	TUNDownOnDisconnectGet
+CMD_TUNDownOnDisconnectGet_COLUMN1	Put TUN down on disconnect
 
 # KeepEnable command
 CMD_KeepEnable			Enable the Keep Alive Internet Connection Function
@@ -6619,6 +6634,20 @@ CMD_AccountServerCertDisable	Disable VPN Connection Setting Server Certificate V
 CMD_AccountServerCertDisable_Help	When a VPN Connection Setting registered on the VPN Client is specified and that VPN Connection Setting connects to a VPN Server, use this to disable the option to check whether the SSL certificate provided by the destination VPN Server can be trusted.
 CMD_AccountServerCertDisable_Args	AccountServerCertDisable [name]
 CMD_AccountServerCertDisable_[name]	Specify the name of the VPN Connection Setting whose setting you want to change.
+
+
+# AccountRetryOnServerCertEnable command
+CMD_AccountRetryOnServerCertEnable	Enable VPN connection retry if server certificate is invalid
+CMD_AccountRetryOnServerCertEnable_Help	When a VPN Connection Setting registered on the VPN Client is specified and that VPN Connection Setting connects to a VPN Server, use this to enable the option to retry connection if Server certificate cannot be trusted.
+CMD_AccountRetryOnServerCertEnable_Args	AccountRetryOnServerCertEnable [name]
+CMD_AccountRetryOnServerCertEnable_[name]	Specify the name of the VPN Connection Setting whose setting you want to change.
+
+
+# AccountRetryOnServerCertDisable command
+CMD_AccountRetryOnServerCertDisable	Enable VPN connection retry if server certificate is invalid
+CMD_AccountRetryOnServerCertDisable_Help	When a VPN Connection Setting registered on the VPN Client is specified and that VPN Connection Setting connects to a VPN Server, use this to disable the option to retry connection if Server certificate cannot be trusted.
+CMD_AccountRetryOnServerCertDisable_Args	AccountRetryOnServerCertEnable [name]
+CMD_AccountRetryOnServerCertDisable_[name]	Specify the name of the VPN Connection Setting whose setting you want to change.
 
 
 # AccountServerCertSet command

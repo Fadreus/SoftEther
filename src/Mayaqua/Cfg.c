@@ -133,7 +133,7 @@ void BackupCfgWEx(CFG_RW *rw, FOLDER *f, wchar_t *original, UINT revision_number
 	wchar_t datestr[MAX_PATH];
 	SYSTEMTIME st;
 	// Validate arguments
-	if (f == NULL || filename == NULL || rw == NULL)
+	if (f == NULL || rw == NULL)
 	{
 		return;
 	}
@@ -1366,10 +1366,6 @@ void CfgAddItemText(BUF *b, ITEM *t, UINT depth)
 
 	// Memory release
 	Free(data);
-	if (sub != NULL)
-	{
-		Free(sub);
-	}
 }
 
 // Output the data line

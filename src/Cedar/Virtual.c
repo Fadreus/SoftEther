@@ -1072,9 +1072,9 @@ void NnFragmentedIpReceived(NATIVE_NAT *t, PKT *packet)
 			c = NnInsertIpCombine(
 				t, ip->SrcIP, ip->DstIP, Endian16(ip->Identification), ip->Protocol, packet->BroadcastPacket,
 				ip->TimeToLive, false);
-			c->MaxL3Size = MAX(c->MaxL3Size, l3_size);
 			if (c != NULL)
 			{
+				c->MaxL3Size = MAX(c->MaxL3Size, l3_size);
 				NnCombineIp(t, c, offset, data, size, last_packet, head_ip_header_data, head_ip_header_size);
 			}
 		}
@@ -1995,12 +1995,9 @@ LABEL_RESTART:
 			}
 			Unlock(t->CancelLock);
 
-			if (c != NULL)
-			{
-				Cancel(c);
+			Cancel(c);
 
-				ReleaseCancel(c);
-			}
+			ReleaseCancel(c);
 		}
 
 		if (IsTubeConnected(ipc->Sock->RecvTube) == false || IsTubeConnected(ipc->Sock->SendTube) == false)
@@ -4431,7 +4428,7 @@ void NatTcpConnectThread(THREAD *t, void *p)
 
 	// Attempt to connect to the TCP host
 	Debug("NatTcpConnect Connecting to %s:%u\n", hostname, port_number);
-	sock = ConnectEx3(hostname, port_number, 0, &n->NatTcpCancelFlag, NULL, NULL, false, false, true);
+	sock = ConnectEx3(hostname, port_number, 0, &n->NatTcpCancelFlag, NULL, NULL, false, true);
 	if (sock == NULL)
 	{
 		// Connection failure
@@ -5009,7 +5006,7 @@ void PollingNatTcp(VH *v, NAT_ENTRY *n)
 			if (n->TcpFinished)
 			{
 				// Disconnect if all data transmission has completed
-				if (n->SendFifo->size == 0)
+				if (n->SendFifo->size == 0 && n->RecvFifo->size == 0)
 				{
 					n->TcpStatus = NAT_TCP_SEND_RESET;
 				}
