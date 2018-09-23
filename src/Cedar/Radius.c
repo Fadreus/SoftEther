@@ -1577,7 +1577,7 @@ RADIUS_PACKET *ParseRadiusPacket(void *data, UINT size)
 				goto LABEL_ERROR;
 			}
 
-			if (a.Type == RADIUS_ATTRIBUTE_EAP_MESSAGE && a.DataSize >= 5 && a.DataSize <= 1500)
+			if (a.Type == RADIUS_ATTRIBUTE_EAP_MESSAGE && a.DataSize >= 5)
 			{
 				UINT sz_tmp = Endian16(((EAP_MESSAGE *)a.Data)->Len);
 
@@ -1691,15 +1691,8 @@ RADIUS_PACKET *ParseRadiusPacket(void *data, UINT size)
 
 LABEL_ERROR:
 
-	if (p != NULL)
-	{
-		FreeRadiusPacket(p);
-	}
-
-	if (buf != NULL)
-	{
-		FreeBuf(buf);
-	}
+	FreeRadiusPacket(p);
+	FreeBuf(buf);
 
 	return NULL;
 }
@@ -2403,7 +2396,7 @@ BUF *RadiusEncryptPassword(char *password, UCHAR *random, UCHAR *secret, UINT se
 		{
 			WriteBuf(tmp, c[i - 1], 16);
 		}
-		Hash(b[i], tmp->Buf, tmp->Size, false);
+		Md5(b[i], tmp->Buf, tmp->Size);
 		FreeBuf(tmp);
 
 		// Calculation of c[i]

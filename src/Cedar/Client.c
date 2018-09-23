@@ -253,7 +253,7 @@ void CiGetCurrentMachineHashOld(void *data)
 	Trim(name);
 	StrUpper(name);
 
-	Hash(data, name, StrLen(name), true);
+	Sha0(data, name, StrLen(name));
 }
 
 // Get current machine hash
@@ -272,7 +272,7 @@ void CiGetCurrentMachineHash(void *data)
 	Trim(name);
 	StrUpper(name);
 
-	Hash(data, name, StrLen(name), true);
+	Sha0(data, name, StrLen(name));
 }
 
 // Get current machine hash (without using domain name)
@@ -297,7 +297,7 @@ void CiGetCurrentMachineHashNew(void *data)
 	Trim(name);
 	StrUpper(name);
 
-	Hash(data, name, StrLen(name), true);
+	Sha0(data, name, StrLen(name));
 }
 
 
@@ -1869,24 +1869,21 @@ BEGIN_LISTENER:
 			// If the port cannot be opened
 			if (cn_next_allow <= Tick64())
 			{
-				if (cursor_changed || cn_listener->Halt)
+				if (cursor_changed)
 				{
-					if (cursor_changed)
-					{
-						// It can be judged to have the rights to open the port
-						// since the mouse cursor is moving.
-						// So, take over the port which is owned by other process forcibly
-						CncReleaseSocket();
-					}
+					// It can be judged to have the rights to open the port
+					// since the mouse cursor is moving.
+					// So, take over the port which is owned by other process forcibly
+					CncReleaseSocket();
+				}
 
-					if (cn_listener->Halt)
-					{
-						ReleaseListener(cn_listener);
-						cn_listener = NULL;
+				if (cn_listener->Halt)
+				{
+					ReleaseListener(cn_listener);
+					cn_listener = NULL;
 
-						Unlock(cn_listener_lock);
-						goto BEGIN_LISTENER;
-					}
+					Unlock(cn_listener_lock);
+					goto BEGIN_LISTENER;
 				}
 			}
 		}
@@ -5725,7 +5722,7 @@ L_TRY:
 
 	SetTimeout(s, 10000);
 
-	Hash(hash_password, password, StrLen(password), true);
+	Sha0(hash_password, password, StrLen(password));
 
 	if (key != NULL)
 	{
@@ -8775,7 +8772,7 @@ bool CtGetPasswordSetting(CLIENT *c, RPC_CLIENT_PASSWORD_SETTING *a)
 		return false;
 	}
 
-	Hash(hash, "", 0, true);
+	Sha0(hash, "", 0);
 	if (Cmp(hash, c->EncryptedPassword, SHA1_SIZE) == 0)
 	{
 		a->IsPasswordPresented = false;
@@ -8804,7 +8801,7 @@ bool CtSetPassword(CLIENT *c, RPC_CLIENT_PASSWORD *pass)
 	if (StrCmp(str, "********") != 0)
 	{
 		// Hash the password
-		Hash(c->EncryptedPassword, str, StrLen(str), true);
+		Sha0(c->EncryptedPassword, str, StrLen(str));
 	}
 
 	c->PasswordRemoteOnly = pass->PasswordRemoteOnly;
@@ -9157,7 +9154,7 @@ void CiInitConfiguration(CLIENT *c)
 		CLog(c, "LC_LOAD_CONFIG_3");
 		// Do the initial setup because the configuration file does not exist
 		// Clear the password
-		Hash(c->EncryptedPassword, "", 0, true);
+		Sha0(c->EncryptedPassword, "", 0);
 		// Initialize the client configuration
 		// Disable remote management
 		c->Config.AllowRemoteConfig = false;
@@ -9776,7 +9773,7 @@ bool CiReadSettingFromCfg(CLIENT *c, FOLDER *root)
 
 	if (CfgGetByte(root, "EncryptedPassword", c->EncryptedPassword, SHA1_SIZE) == false)
 	{
-		Hash(c->EncryptedPassword, "", 0, true);
+		Sha0(c->EncryptedPassword, "", 0);
 	}
 
 	c->PasswordRemoteOnly = CfgGetBool(root, "PasswordRemoteOnly");
@@ -10442,7 +10439,7 @@ CLIENT *CiNewClient()
 
 	c->NotifyCancelList = NewList(NULL);
 
-	Hash(c->EncryptedPassword, "", 0, true);
+	Sha0(c->EncryptedPassword, "", 0);
 
 #ifdef	OS_WIN32
 	c->GlobalPulse = MsOpenOrCreateGlobalPulse(CLIENT_GLOBAL_PULSE_NAME);

@@ -108,7 +108,7 @@
 // test has been passed before release this source code.
 
 
-// IPsec_IPC.c
+// IPC.c
 // In-process VPN client module
 
 #include "CedarPch.h"
@@ -459,7 +459,7 @@ IPC *NewIPC(CEDAR *cedar, char *client_name, char *postfix, char *hubname, char 
 	WriteBufStr(b, client_name);
 	WriteBufStr(b, crypt_name);
 
-	HashSha1(unique, b->Buf, b->Size);
+	Sha1(unique, b->Buf, b->Size);
 
 	FreeBuf(b);
 

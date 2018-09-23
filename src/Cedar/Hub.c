@@ -2719,7 +2719,7 @@ BUF *BuildRedirectToUrlPayload(HUB *hub, SESSION *s, char *redirect_url)
 			WriteBuf(b2, tmp, StrLen(tmp));
 			WriteBuf(b2, secret, StrLen(secret));
 
-			HashSha1(hash, b2->Buf, b2->Size);
+			Sha1(hash, b2->Buf, b2->Size);
 
 			BinToStr(hash_str, sizeof(hash_str), hash, sizeof(hash));
 
@@ -3023,7 +3023,7 @@ bool ApplyAccessListToStoredPacket(HUB *hub, SESSION *s, PKT *p)
 
 	if (pass)
 	{
-		if (s != NULL && s->FirstTimeHttpRedirect && s->FirstTimeHttpAccessCheckIp != 0)
+		if (s->FirstTimeHttpRedirect && s->FirstTimeHttpAccessCheckIp != 0)
 		{
 			if ((p->TypeL3 == L3_IPV4 || p->TypeL3 == L3_IPV6) &&
 				p->TypeL4 == L4_TCP)
@@ -3133,39 +3133,6 @@ bool IsTcpPacketNcsiHttpAccess(PKT *p)
 	}
 
 	return false;
-}
-
-// Set the URL to which to redirect first
-bool SetSessionFirstRedirectHttpUrl(SESSION *s, char *url)
-{
-	URL_DATA d;
-	IP ip;
-	// Validate arguments
-	if (s == NULL || url == NULL || IsEmptyStr(url))
-	{
-		return false;
-	}
-
-	if (ParseUrl(&d, url, false, NULL) == false)
-	{
-		return false;
-	}
-
-	if (StrToIP(&ip, d.HostName) == false)
-	{
-		return false;
-	}
-
-	if (IsIP4(&ip) == false)
-	{
-		return false;
-	}
-
-	s->FirstTimeHttpAccessCheckIp = IPToUINT(&ip);
-	StrCpy(s->FirstTimeHttpRedirectUrl, sizeof(s->FirstTimeHttpRedirectUrl), url);
-	s->FirstTimeHttpRedirect = true;
-
-	return true;
 }
 
 // Adding Access List
@@ -3377,39 +3344,10 @@ UINT64 UsernameToInt64(char *name)
 		return 0;
 	}
 
-	Hash(hash, tmp, StrLen(tmp), true);
+	Sha0(hash, tmp, StrLen(tmp));
 	Copy(&ret, hash, sizeof(ret));
 
 	return ret;
-}
-
-// Search the session from the session pointer
-SESSION *GetSessionByPtr(HUB *hub, void *ptr)
-{
-	// Validate arguments
-	if (hub == NULL || ptr == NULL)
-	{
-		return NULL;
-	}
-
-	LockList(hub->SessionList);
-	{
-		UINT i;
-		for (i = 0;i < LIST_NUM(hub->SessionList);i++)
-		{
-			SESSION *s = LIST_DATA(hub->SessionList, i);
-			if (s == (SESSION *)ptr)
-			{
-				// Found
-				AddRef(s->ref);
-				UnlockList(hub->SessionList);
-				return s;
-			}
-		}
-	}
-	UnlockList(hub->SessionList);
-
-	return NULL;
 }
 
 // Search the session from the session name
@@ -3908,26 +3846,6 @@ LABEL_TRY_AGAIN:
 	return true;
 }
 
-// VGS: Setting for embedding UA tag
-void VgsSetEmbTag(bool b)
-{
-	g_vgs_emb_tag = b;
-}
-
-// VGS: Setting for the User-Agent value
-void VgsSetUserAgentValue(char *str)
-{
-	// Validate arguments
-	if (str == NULL || StrLen(str) != 8)
-	{
-		Zero(vgs_ua_str, sizeof(vgs_ua_str));
-	}
-	else
-	{
-		StrCpy(vgs_ua_str, sizeof(vgs_ua_str), str);
-	}
-}
-
 // Checking algorithm to prevent broadcast-storm
 // If broadcast from a specific endpoint came frequently, filter it
 bool CheckBroadcastStorm(HUB *hub, SESSION *s, PKT *p)
@@ -3952,7 +3870,7 @@ bool CheckBroadcastStorm(HUB *hub, SESSION *s, PKT *p)
 		return true;
 	}
 
-	if (hub != NULL && hub->Option != NULL)
+	if (hub->Option != NULL)
 	{
 		strict = hub->Option->BroadcastLimiterStrictMode;
 		no_heavy = hub->Option->DoNotSaveHeavySecurityLogs;
@@ -4364,7 +4282,7 @@ DISCARD_PACKET:
 									UCHAR hash[MD5_SIZE];
 									UINT64 tick_diff = Tick64() - s->LastDLinkSTPPacketSendTick;
 
-									Hash(hash, packet->PacketData, packet->PacketSize, false);
+									Md5(hash, packet->PacketData, packet->PacketSize);
 
 									if ((s->LastDLinkSTPPacketSendTick != 0) &&
 										(tick_diff < 750ULL) &&
@@ -5346,7 +5264,6 @@ bool IsIPManagementTargetForHUB(IP *ip, HUB *hub)
 void DeleteOldIpTableEntry(LIST *o)
 {
 	UINT i;
-	UINT64 oldest_time = 0xffffffffffffffffULL;
 	IP_TABLE_ENTRY *old = NULL;
 	// Validate arguments
 	if (o == NULL)
@@ -5357,11 +5274,7 @@ void DeleteOldIpTableEntry(LIST *o)
 	for (i = 0;i < LIST_NUM(o);i++)
 	{
 		IP_TABLE_ENTRY *e = LIST_DATA(o, i);
-
-		if (e->UpdatedTime <= oldest_time)
-		{
-			old = e;
-		}
+		old = e;
 	}
 
 	if (old != NULL)
@@ -5476,7 +5389,7 @@ void StorePacketToHubPa(HUB_PA *dest, SESSION *src, void *data, UINT size, PKT *
 		}
 	}
 
-	if (src != NULL && src->Hub != NULL && src->Hub->Option != NULL && src->Hub->Option->FixForDLinkBPDU)
+	if (packet != NULL && src != NULL && src->Hub != NULL && src->Hub->Option != NULL && src->Hub->Option->FixForDLinkBPDU)
 	{
 		// Measures for D-Link bug
 		UCHAR *mac = packet->MacAddressSrc;
@@ -5490,7 +5403,7 @@ void StorePacketToHubPa(HUB_PA *dest, SESSION *src, void *data, UINT size, PKT *
 				if (session->Policy != NULL && session->Policy->CheckMac)
 				{
 					UCHAR hash[MD5_SIZE];
-					Hash(hash, packet->PacketData, packet->PacketSize, false);
+					Md5(hash, packet->PacketData, packet->PacketSize);
 
 					Copy(session->LastDLinkSTPPacketDataHash, hash, MD5_SIZE);
 					session->LastDLinkSTPPacketSendTick = Tick64();
@@ -5621,7 +5534,7 @@ bool StorePacketFilterByPolicy(SESSION *s, PKT *p)
 
 	hub = s->Hub;
 
-	if (hub->Option != NULL)
+	if (hub != NULL && hub->Option != NULL)
 	{
 		no_heavy = hub->Option->DoNotSaveHeavySecurityLogs;
 	}
@@ -5922,10 +5835,8 @@ UPDATE_DHCP_ALLOC_ENTRY:
 										DeleteOldIpTableEntry(hub->IpTable);
 									}
 									Insert(hub->IpTable, e);
-								}
 
-								if (new_entry)
-								{
+								
 									if ((hub->Option != NULL && hub->Option->NoDhcpPacketLogOutsideHub == false) || mac_table->Session != s)
 									{
 										char dhcp_mac_addr[64];
@@ -6659,34 +6570,6 @@ void SetRadiusServerEx(HUB *hub, char *name, UINT port, char *secret, UINT inter
 	Unlock(hub->RadiusOptionLock);
 }
 
-// Get the difference between the traffic data
-void CalcTrafficEntryDiff(TRAFFIC_ENTRY *diff, TRAFFIC_ENTRY *old, TRAFFIC_ENTRY *current)
-{
-	// Validate arguments
-	Zero(diff, sizeof(TRAFFIC_ENTRY));
-	if (old == NULL || current == NULL || diff == NULL)
-	{
-		return;
-	}
-
-	if (current->BroadcastCount >= old->BroadcastCount)
-	{
-		diff->BroadcastCount = current->BroadcastCount - old->BroadcastCount;
-	}
-	if (current->BroadcastBytes >= old->BroadcastBytes)
-	{
-		diff->BroadcastBytes = current->BroadcastBytes - old->BroadcastBytes;
-	}
-	if (current->UnicastCount >= old->UnicastCount)
-	{
-		diff->UnicastCount = current->UnicastCount - old->UnicastCount;
-	}
-	if (current->UnicastBytes >= old->UnicastBytes)
-	{
-		diff->UnicastBytes = current->UnicastBytes - old->UnicastBytes;
-	}
-}
-
 // Add the traffic information for Virtual HUB
 void IncrementHubTraffic(HUB *h)
 {
@@ -7006,7 +6889,7 @@ void GenHubIpAddress(IP *ip, char *name)
 	StrCat(tmp2, sizeof(tmp2), tmp1);
 	StrUpper(tmp2);
 
-	Hash(hash, tmp2, StrLen(tmp2), true);
+	Sha0(hash, tmp2, StrLen(tmp2));
 
 	Zero(ip, sizeof(IP));
 	ip->addr[0] = 172;
@@ -7034,7 +6917,7 @@ void GenHubMacAddress(UCHAR *mac, char *name)
 	StrCat(tmp2, sizeof(tmp2), tmp1);
 	StrUpper(tmp2);
 
-	Hash(hash, tmp2, StrLen(tmp2), true);
+	Sha0(hash, tmp2, StrLen(tmp2));
 
 	mac[0] = 0x00;
 	mac[1] = SE_HUB_MAC_ADDR_SIGN;
@@ -7107,7 +6990,7 @@ HUB *NewHub(CEDAR *cedar, char *HubName, HUB_OPTION *option)
 	}
 
 	h = ZeroMalloc(sizeof(HUB));
-	Hash(h->HashedPassword, "", 0, true);
+	Sha0(h->HashedPassword, "", 0);
 	HashPassword(h->SecurePassword, ADMINISTRATOR_USERNAME, "");
 	h->lock = NewLock();
 	h->lock_online = NewLock();
