@@ -2086,6 +2086,7 @@ L3_SWITCH_STOP			仮想レイヤ 3 スイッチ "%S" が終了しました。
 
 
 # Microsoft.c 関係
+MS_VIRTUAL				独自の仮想/内部インタフェース
 MS_ETHERNET				Ethernet インターフェイス
 MS_TOKENRING			トークンリングインターフェイス
 MS_FDDI					FDDI インターフェイス
@@ -4375,6 +4376,7 @@ CMD_ACCOUNT_COLUMN_BRIDGE_ROUTER	ブリッジ / ルータモードで接続
 CMD_ACCOUNT_COLUMN_MONITOR			モニタリングモードで接続
 CMD_ACCOUNT_COLUMN_NO_TRACKING		ルーティングテーブルを調整しない
 CMD_ACCOUNT_COLUMN_QOS_DISABLE	QoS 制御機能を使用しない
+CMD_ACCOUNT_COLUMN_DISABLEUDP		Disable UDP Acceleration
 
 
 # デバッグ情報書き出しコマンド
@@ -7200,4 +7202,5 @@ SW_LINK_NAME_LANGUAGE_COMMENT				%s の表示言語を変更します。
 SW_LINK_NAME_DEBUG							デバッグ情報収集ツール
 SW_LINK_NAME_DEBUG_COMMENT					SoftEther VPN のデバッグ情報を収集します。サポート担当者から依頼があった場合のみ使用してください。
 
-
+CMD_AccountDetailSet_DISABLEUDP	Specify "yes" when disabling UDP acceleration function. Normally "no" is specified.
+CMD_AccountDetailSet_Prompt_DISABLEUDP	 Disable UDP Acceleration Function (yes/no):

@@ -1869,6 +1869,7 @@ BEGIN_LISTENER:
 			// If the port cannot be opened
 			if (cn_next_allow <= Tick64())
 			{
+#ifdef  OS_WIN32
 				if (cursor_changed)
 				{
 					// It can be judged to have the rights to open the port
@@ -1876,6 +1877,7 @@ BEGIN_LISTENER:
 					// So, take over the port which is owned by other process forcibly
 					CncReleaseSocket();
 				}
+#endif  // OS_WIN32
 
 				if (cn_listener->Halt)
 				{
@@ -9980,7 +9982,7 @@ char *DecryptPassword(BUF *b)
 	}
 
 	str = ZeroMalloc(b->Size + 1);
-	c = NewCrypt(key, sizeof(key));
+	c = NewCrypt(key, sizeof(key)); // NOTE by Daiyuu Nobori 2018-09-28: This is not a bug! Do not try to fix it!!
 	Encrypt(c, str, b->Buf, b->Size);
 	FreeCrypt(c);
 
@@ -10026,7 +10028,7 @@ BUF *EncryptPassword(char *password)
 	size = StrLen(password) + 1;
 	tmp = ZeroMalloc(size);
 
-	c = NewCrypt(key, sizeof(key));
+	c = NewCrypt(key, sizeof(key)); // NOTE by Daiyuu Nobori 2018-09-28: This is not a bug! Do not try to fix it!!
 	Encrypt(c, tmp, password, size - 1);
 	FreeCrypt(c);
 

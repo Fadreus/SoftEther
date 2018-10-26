@@ -20,22 +20,46 @@ matrix:
     - env: OPENSSL_VERSION="1.1.0f"
       os: linux
       compiler: clang
+    - env: LABEL="check stb files"
+      os: linux
+      language: csharp
+      mono: none
+      dotnet: 2.1.300
+      before_install:
+        - true
+      before_script:
+        - true
+      script:
+        - cd developer_tools/stbchecker
+        - dotnet run ../../src/bin/hamcore
+    - env: LABEL="create release from tag"
+      os: linux
+      deploy:
+        provider: releases
+        api_key: ${GITHUB_OAUTH_TOKEN}
+        file: se.tar.gz
+        skip_cleanup: true
+        on:
+          tags: true
+          repo: SoftEtherVPN/SoftEtherVPN
+      before_install:
+        - true
+      before_script:
+        - if [ -z "$TRAVIS_TAG" ]; then exit 0; fi
+      script:
+        - true
     - os: osx
       compiler: clang
       cache:
         directories:
         - ${HOME}/Library/Caches/Homebrew
       before_install:
-        - brew update && brew upgrade
+        - brew update
       script:
         - ./configure
         - make -C tmp
-        - otool -L build/vpnserver/vpnserver
+        - otool -L build/vpnserver
         - sudo make -C tmp install
-
-addons:
-  apt:
-    packages: [ debhelper, devscripts, fakeroot, cmake3, dh-exec ]
 
 cache:
   directories:
@@ -55,6 +79,6 @@ script:
   - export LDFLAGS="-L${HOME}/opt/lib"
   - ./configure
   - make -C tmp
-  - ldd build/vpnserver/vpnserver
+  - ldd build/vpnserver
   - sudo LD_LIBRARY_PATH="${HOME}/opt/lib:${LD_LIBRARY_PATH:-}" make -C tmp install
   - if [ "${BUILD_DEB}" = "1" ]; then make package -C tmp; fi

@@ -2082,6 +2082,7 @@ L3_SWITCH_STOP			The Virtual Layer 3 Switch "%S" terminated.
 
 
 # Concerning Microsoft.c
+MS_VIRTUAL				Proprietary Virtual/Internal Interface
 MS_ETHERNET				Ethernet Interface
 MS_TOKENRING			Token Ring Interface
 MS_FDDI					FDDI Interface
@@ -4371,6 +4372,7 @@ CMD_ACCOUNT_COLUMN_BRIDGE_ROUTER	Connect by Bridge / Router Mode
 CMD_ACCOUNT_COLUMN_MONITOR			Connect by Monitoring Mode
 CMD_ACCOUNT_COLUMN_NO_TRACKING		No Adjustment for Routing Table
 CMD_ACCOUNT_COLUMN_QOS_DISABLE		Do not Use QoS Control Function
+CMD_ACCOUNT_COLUMN_DISABLEUDP		Disable UDP Acceleration
 
 
 # Debugging Information Collecting Tool

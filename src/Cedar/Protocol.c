@@ -6011,7 +6011,7 @@ bool ServerDownloadSignature(CONNECTION *c, char **error_detail_str)
 			{
 				// Compare posted data with the WaterMark
 				if ((data_size == StrLen(HTTP_VPN_TARGET_POSTDATA) && (Cmp(data, HTTP_VPN_TARGET_POSTDATA, data_size) == 0))
-					|| (Cmp(data, WaterMark, SizeOfWaterMark()) == 0))
+					|| ((data_size >= SizeOfWaterMark()) && Cmp(data, WaterMark, SizeOfWaterMark()) == 0))
 				{
 					// Check the WaterMark
 					Free(data);
@@ -7094,8 +7094,7 @@ PACK *PackLoginWithOpenVPNCertificate(char *hubname, char *username, X *x)
 		{
 			return NULL;
 		}
-		wcstombs(cn_username, x->subject_name->CommonName, 127);
-		cn_username[127] = '\0';
+		UniToStr(cn_username, sizeof(cn_username), x->subject_name->CommonName);
 		PackAddStr(p, "username", cn_username);
 	}
 	else

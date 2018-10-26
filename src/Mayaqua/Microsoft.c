@@ -3119,6 +3119,10 @@ wchar_t *MsGetAdapterTypeStr(UINT type)
 
 	switch (type)
 	{
+	case IF_TYPE_PROP_VIRTUAL:
+		ret = _UU("MS_VIRTUAL");
+		break;
+
 	case MIB_IF_TYPE_ETHERNET:
 		ret = _UU("MS_ETHERNET");
 		break;
@@ -4565,8 +4569,11 @@ void CALLBACK MsServiceDispatcher(DWORD argc, LPTSTR *argv)
 
 	//// Initialization
 	// Start of the Mayaqua
-#ifdef DEBUG
-	InitMayaqua(true, true, 0, NULL);
+#if defined(_DEBUG) || defined(DEBUG)	// In VC++ compilers, the macro is "_DEBUG", not "DEBUG".
+	// If set memcheck = true, the program will be vitally slow since it will log all malloc() / realloc() / free() calls to find the cause of memory leak.
+	// For normal debug we set memcheck = false.
+	// Please set memcheck = true if you want to test the cause of memory leaks.
+	InitMayaqua(false, true, 0, NULL);
 #else
 	InitMayaqua(false, false, 0, NULL);
 #endif
@@ -4744,8 +4751,11 @@ UINT MsService(char *name, SERVICE_FUNCTION *start, SERVICE_FUNCTION *stop, UINT
 	}
 
 	// Start of the Mayaqua
-#ifdef DEBUG
-	InitMayaqua(true, true, 0, NULL);
+#if defined(_DEBUG) || defined(DEBUG)	// In VC++ compilers, the macro is "_DEBUG", not "DEBUG".
+	// If set memcheck = true, the program will be vitally slow since it will log all malloc() / realloc() / free() calls to find the cause of memory leak.
+	// For normal debug we set memcheck = false.
+	// Please set memcheck = true if you want to test the cause of memory leaks.
+	InitMayaqua(false, true, 0, NULL);
 #else
 	InitMayaqua(false, false, 0, NULL);
 #endif

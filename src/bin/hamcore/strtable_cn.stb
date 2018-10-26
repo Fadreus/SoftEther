@@ -2102,6 +2102,7 @@ L3_SWITCH_STOP				虚拟 3 层交换机 "%S" 终止。
 
 
 #关于Microsoft.c
+MS_VIRTUAL					专有的虚拟/内部接口
 MS_ETHERNET					以太网接口
 MS_TOKENRING				令牌环接口
 MS_FDDI						FDDI 接口
@@ -4388,6 +4389,7 @@ CMD_ACCOUNT_COLUMN_BRIDGE_ROUTER	通过网桥 / 路由模式连接
 CMD_ACCOUNT_COLUMN_MONITOR	通过监测模式连接
 CMD_ACCOUNT_COLUMN_NO_TRACKING	不要调整路由表
 CMD_ACCOUNT_COLUMN_QOS_DISABLE	不要使用 QoS 控制功能
+CMD_ACCOUNT_COLUMN_DISABLEUDP		Disable UDP Acceleration
 
 
 # Debugging Information Collecting Tool
@@ -6710,6 +6712,8 @@ CMD_AccountDetailSet_Prompt_BRIDGE	启用桥/路由器模式 (yes/no):
 CMD_AccountDetailSet_Prompt_MONITOR	启用监控模式 (yes/no): 
 CMD_AccountDetailSet_Prompt_NOTRACK	禁用路由表项调节器 (yes/no): 
 CMD_AccountDetailSet_Prompt_NOQOS	禁用 QoS 控制功能 (yes/no): 
+CMD_AccountDetailSet_DISABLEUDP Specify "yes" when disabling UDP acceleration function. Normally "no" is specified.
+CMD_AccountDetailSet_Prompt_DISABLEUDP   Disable UDP Acceleration Function (yes/no):
 
 
 # AccountRename 命令
