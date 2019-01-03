@@ -1,6 +1,6 @@
 # SoftEther VPN
 
-[![AppVeyor build status](https://ci.appveyor.com/api/projects/status/github/softethervpn/softethervpn?branch=master&svg=true)](https://ci.appveyor.com/project/softethervpn/softethervpn) [![Travis CI build status](https://travis-ci.org/SoftEtherVPN/SoftEtherVPN.svg?branch=master)](https://travis-ci.org/SoftEtherVPN/SoftEtherVPN) [![Coverity Scan Build Status](https://scan.coverity.com/projects/16304/badge.svg)](https://scan.coverity.com/projects/softethervpn-softethervpn)
+[![AppVeyor build status](https://ci.appveyor.com/api/projects/status/github/softethervpn/softethervpn?branch=master&svg=true)](https://ci.appveyor.com/project/softethervpn/softethervpn) [![Travis CI build status](https://travis-ci.org/SoftEtherVPN/SoftEtherVPN.svg?branch=master)](https://travis-ci.org/SoftEtherVPN/SoftEtherVPN) [![gitlab-ci build status](https://gitlab.com/SoftEther/SoftEtherVPN/badges/master/build.svg)](https://gitlab.com/SoftEther/SoftEtherVPN/pipelines) [![Coverity Scan Build Status](https://scan.coverity.com/projects/16304/badge.svg)](https://scan.coverity.com/projects/softethervpn-softethervpn)
 
 - [SoftEther VPN](#softether-vpn)
 - [BOARD MEMBERS OF THIS REPOSITORY](#board-members-of-this-repository)
@@ -32,12 +32,25 @@ http://www.softether.org/5-download/src/9.patch
 
 Copyright (c) SoftEther Project at University of Tsukuba, Japan.
 
+---
+
 The development of SoftEther VPN was supported by the MITOH Project,
 a research and development project by Japanese Government,
 subsidized by Ministry of Economy, Trade and Industry of Japan,
 administrated by Information Promotion Agency.
 https://www.ipa.go.jp/english/humandev/
 
+---
+
+![https://icons8.com](resources/icons8.png "Icons8")
+
+[Icons8](https://icons8.com) kindly supported the project by gifting a license which allows to edit and redistribute their icons.
+
+Please note that you are not allowed to redistribute those icons outside of this repository.
+
+The developers of SoftEther VPN love Icons8's work and kindly ask the users to support them as much as possible.
+
+---
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License version 2

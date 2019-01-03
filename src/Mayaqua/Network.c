@@ -205,7 +205,6 @@ static LOCK *socket_library_lock = NULL;
 extern LOCK *openssl_lock;
 static LOCK *ssl_accept_lock = NULL;
 static LOCK *ssl_connect_lock = NULL;
-static TOKEN_LIST *cipher_list_token = NULL;
 static COUNTER *num_tcp_connections = NULL;
 static LOCK *dns_lock = NULL;
 static LOCK *unix_dns_server_addr_lock = NULL;
@@ -232,12 +231,6 @@ static bool disable_gethostname_by_accept = false;
 static COUNTER *getip_thread_counter = NULL;
 static UINT max_getip_thread = 0;
 
-
-static char *cipher_list = "RC4-MD5 RC4-SHA AES128-SHA AES256-SHA DES-CBC-SHA DES-CBC3-SHA DHE-RSA-AES128-SHA DHE-RSA-AES256-SHA AES128-GCM-SHA256 AES128-SHA256 AES256-GCM-SHA384 AES256-SHA256 DHE-RSA-AES128-GCM-SHA256 DHE-RSA-AES128-SHA256 DHE-RSA-AES256-GCM-SHA384 DHE-RSA-AES256-SHA256 ECDHE-RSA-AES128-GCM-SHA256 ECDHE-RSA-AES128-SHA256 ECDHE-RSA-AES256-GCM-SHA384 ECDHE-RSA-AES256-SHA384"
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
-	" DHE-RSA-CHACHA20-POLY1305 ECDHE-RSA-CHACHA20-POLY1305";
-#endif
-;
 
 static LIST *ip_clients = NULL;
 
@@ -16532,8 +16525,6 @@ void InitNetwork()
 	Zero(&unix_dns_server, sizeof(unix_dns_server));
 	local_mac_list_lock = NewLock();
 
-	cipher_list_token = ParseToken(cipher_list, " ");
-
 	current_global_ip_lock = NewLock();
 	current_fqdn_lock = NewLock();
 	current_global_ip_set = false;
@@ -16566,7 +16557,68 @@ bool IsNetworkNameCacheEnabled()
 // Get the cipher algorithm list
 TOKEN_LIST *GetCipherList()
 {
-	return cipher_list_token;
+	UINT i;
+	SSL *ssl;
+	SSL_CTX *ctx;
+	const char *name;
+	STACK_OF(SSL_CIPHER) *sk;
+
+	TOKEN_LIST *ciphers = ZeroMalloc(sizeof(TOKEN_LIST));
+
+	ctx = NewSSLCtx(true);
+	if (ctx == NULL)
+	{
+		return ciphers;
+	}
+
+	SSL_CTX_set_ssl_version(ctx, SSLv23_server_method());
+
+#ifdef	SSL_OP_NO_SSLv3
+	SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv3);
+#endif
+
+	ssl = SSL_new(ctx);
+	if (ssl == NULL)
+	{
+		FreeSSLCtx(ctx);
+		return ciphers;
+	}
+
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L && !defined(LIBRESSL_VERSION_NUMBER)
+	sk = SSL_get1_supported_ciphers(ssl);
+#else
+	sk = SSL_get_ciphers(ssl);
+#endif
+
+	for (i = 0; i < sk_SSL_CIPHER_num(sk); i++)
+	{
+		const SSL_CIPHER *c = sk_SSL_CIPHER_value(sk, i);
+
+		name = SSL_CIPHER_get_name(c);
+		if (IsEmptyStr(name))
+		{
+			break;
+		}
+
+		ciphers->NumTokens++;
+
+		if (ciphers->Token != NULL)
+		{
+			ciphers->Token = ReAlloc(ciphers->Token, sizeof(char *) * ciphers->NumTokens);
+		}
+		else
+		{
+			ciphers->Token = Malloc(sizeof(char *));
+		}
+
+		ciphers->Token[i] = CopyStr(name);
+	}
+
+	sk_SSL_CIPHER_free(sk);
+	FreeSSLCtx(ctx);
+	SSL_free(ssl);
+
+	return ciphers;
 }
 
 // Get the TCP connections counter
@@ -16953,9 +17005,6 @@ void FreeNetwork()
 
 	// Release of thread-related
 	FreeWaitThread();
-
-	FreeToken(cipher_list_token);
-	cipher_list_token = NULL;
 
 	Zero(&unix_dns_server, sizeof(unix_dns_server));
 
@@ -18711,16 +18760,9 @@ LABEL_RESTART:
 			// Create a thread to get a NAT-T IP address if necessary
 			if (u->GetNatTIpThread == NULL)
 			{
-				// Create a thread to get a NAT-T IP address if necessary
-				if (u->GetNatTIpThread == NULL)
-				{
-					char natt_hostname[MAX_SIZE];
-
-					RUDPGetRegisterHostNameByIP(natt_hostname, sizeof(natt_hostname), NULL);
-
-					u->GetNatTIpThread = NewQueryIpThread(natt_hostname, QUERYIPTHREAD_INTERVAL_LAST_OK, QUERYIPTHREAD_INTERVAL_LAST_NG);
-				}
-
+				char natt_hostname[MAX_SIZE];
+				RUDPGetRegisterHostNameByIP(natt_hostname, sizeof(natt_hostname), NULL);
+				u->GetNatTIpThread = NewQueryIpThread(natt_hostname, QUERYIPTHREAD_INTERVAL_LAST_OK, QUERYIPTHREAD_INTERVAL_LAST_NG);
 				GetQueryIpThreadResult(u->GetNatTIpThread, &nat_t_ip);
 			}
 		}
@@ -20565,101 +20607,53 @@ HTTP_HEADER *RecvHttpHeader(SOCK *s)
 	str = RecvLine(s, HTTP_HEADER_LINE_MAX_SIZE);
 	if (str == NULL)
 	{
-		goto LABEL_ERROR;
+		return NULL;
 	}
 
 	// Split into tokens
 	token = ParseToken(str, " ");
+
+	FreeSafe(PTR_TO_PTR(str));
+
 	if (token->NumTokens < 3)
 	{
-		goto LABEL_ERROR;
+		FreeToken(token);
+		return NULL;
 	}
-
-	Free(str);
-	str = NULL;
 
 	// Creating a header object
 	header = NewHttpHeader(token->Token[0], token->Token[1], token->Token[2]);
+	FreeToken(token);
 
 	if (StrCmpi(header->Version, "HTTP/0.9") == 0)
 	{
 		// The header ends with this line
-		FreeToken(token);
 		return header;
 	}
 
 	// Get the subsequent lines
 	while (true)
 	{
-		UINT pos;
-		HTTP_VALUE *v;
-		char *value_name, *value_data;
 		str = RecvLine(s, HTTP_HEADER_LINE_MAX_SIZE);
-		if (str == NULL)
-		{
-			goto LABEL_ERROR;
-		}
 		Trim(str);
-
-		if (StrLen(str) == 0)
+		if (IsEmptyStr(str))
 		{
 			// End of header
-			Free(str);
-			str = NULL;
+			FreeSafe(PTR_TO_PTR(str));
 			break;
 		}
 
-		// Get the position of the colon
-		pos = SearchStr(str, ":", 0);
-		if (pos == INFINITE)
+		if (AddHttpValueStr(header, str) == false)
 		{
-			// The colon does not exist
-			goto LABEL_ERROR;
-		}
-		if ((pos + 1) >= StrLen(str))
-		{
-			// There is no data
-			goto LABEL_ERROR;
+			FreeSafe(PTR_TO_PTR(str));
+			FreeHttpHeaderSafe(&header);
+			break;
 		}
 
-		// Divide into the name and the data
-		value_name = Malloc(pos + 1);
-		Copy(value_name, str, pos);
-		value_name[pos] = 0;
-		value_data = &str[pos + 1];
-
-		v = NewHttpValue(value_name, value_data);
-		if (v == NULL)
-		{
-			Free(value_name);
-			goto LABEL_ERROR;
-		}
-
-		Free(value_name);
-
-		AddHttpValue(header, v);
-		Free(str);
+		FreeSafe(PTR_TO_PTR(str));
 	}
-
-	FreeToken(token);
 
 	return header;
-
-LABEL_ERROR:
-	// Memory release
-	if (token)
-	{
-		FreeToken(token);
-	}
-	if (str)
-	{
-		Free(str);
-	}
-	if (header)
-	{
-		FreeHttpHeader(header);
-	}
-	return NULL;
 }
 
 // Receive a line
@@ -20773,6 +20767,57 @@ void AddHttpValue(HTTP_HEADER *header, HTTP_VALUE *value)
 	}
 }
 
+// Adds the HTTP value contained in the string to the HTTP header
+bool AddHttpValueStr(HTTP_HEADER* header, char *string)
+{
+	HTTP_VALUE *value = NULL;
+	UINT pos = 0;
+	char *value_name = NULL;
+	char *value_data = NULL;
+
+	// Validate arguments
+	if (header == NULL || IsEmptyStr(string))
+	{
+		return false;
+	}
+
+	// Sanitize string
+	EnSafeHttpHeaderValueStr(string, ' ');
+
+	// Get the position of the colon
+	pos = SearchStr(string, ":", 0);
+	if (pos == INFINITE)
+	{
+		// The colon does not exist
+		return false;
+	}
+
+	if ((pos + 1) >= StrLen(string))
+	{
+		// There is no data
+		return false;
+	}
+
+	// Divide into the name and the data
+	value_name = Malloc(pos + 1);
+	Copy(value_name, string, pos);
+	value_name[pos] = 0;
+	value_data = &string[pos + 1];
+
+	value = NewHttpValue(value_name, value_data);
+	if (value == NULL)
+	{
+		Free(value_name);
+		return false;
+	}
+
+	Free(value_name);
+
+	AddHttpValue(header, value);
+
+	return true;
+}
+
 // Create an HTTP header
 HTTP_HEADER *NewHttpHeader(char *method, char *target, char *version)
 {
@@ -20854,6 +20899,13 @@ void FreeHttpHeader(HTTP_HEADER *header)
 	ReleaseList(header->ValueList);
 
 	Free(header);
+}
+
+// Release the HTTP header and set pointer's value to NULL
+void FreeHttpHeaderSafe(HTTP_HEADER **header)
+{
+	FreeHttpHeader(*header);
+	*header = NULL;
 }
 
 // Receive a PACK

@@ -390,7 +390,9 @@ void PPPThread(THREAD *thread, void *param)
 
 	// Notify the IP address of the PPP server
 	c = NewPPPLCP(PPP_LCP_CODE_REQ, 0);
-	ui = Endian32(0x01000001);	// 1.0.0.1
+	// SoftEther VPN is L2-based VPN, so there is no concept of gateway IP address.
+	// We always push 192.0.0.8, which is defined in RFC7600 as dummy IPv4 address.
+	ui = Endian32(0xc0000008);
 	Add(c->OptionList, NewPPPOption(PPP_IPCP_OPTION_IP, &ui, sizeof(UINT)));
 	ret = PPPSendRequest(p, PPP_PROTOCOL_IPCP, c);
 	FreePPPLCP(c);
@@ -805,14 +807,14 @@ bool PPPParseUsername(CEDAR *cedar, char *src_username, ETHERIP_ID *dst)
 	}
 	else
 	{
-		// Search for the last "@" in the string
+		// Search for the separator character's last position in the string
 		len = StrLen(src);
 		last_at = INFINITE;
 		for (i = 0;i < len;i++)
 		{
 			char c = src[i];
 
-			if (c == '@')
+			if (c == cedar->UsernameHubSeparator)
 			{
 				last_at = i;
 			}
@@ -823,12 +825,11 @@ bool PPPParseUsername(CEDAR *cedar, char *src_username, ETHERIP_ID *dst)
 
 		if (last_at == INFINITE)
 		{
-			// "@" is not specified
+			// The separator character is not specified
 			StrCpy(token1, sizeof(token1), src);
 		}
 		else
 		{
-			// Split with last "@"
 			StrCpy(token1, sizeof(token1), src);
 			token1[last_at] = 0;
 

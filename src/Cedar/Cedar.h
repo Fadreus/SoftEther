@@ -209,6 +209,9 @@
 // Hidden password string of 8 characters
 #define	HIDDEN_PASSWORD				"********"
 
+// Default separator character for the hub name in the username
+#define	DEFAULT_USERNAME_HUB_SEPARATOR	'@'
+
 
 //////////////////////////////////////////////////////////////////////
 // 
@@ -391,7 +394,8 @@
 // Type of proxy
 #define	PROXY_DIRECT			0	// Direct TCP connection
 #define	PROXY_HTTP				1	// Connection via HTTP proxy server
-#define	PROXY_SOCKS				2	// Connection via SOCKS proxy server
+#define	PROXY_SOCKS				2	// Connection via SOCKS4 proxy server
+#define	PROXY_SOCKS5			3	// Connection via SOCKS5 proxy server
 
 // Direction of data flow
 #define	TCP_BOTH				0	// Bi-directional
@@ -1023,6 +1027,7 @@ typedef struct CEDAR
 	COUNTER *ConnectionIncrement;	// Connection increment counter
 	X *ServerX;						// Server certificate
 	K *ServerK;						// Private key of the server certificate
+	char UsernameHubSeparator;		// Character which separates the username from the hub name
 	char *CipherList;				// List of encryption algorithms
 	UINT Version;					// Version information
 	UINT Build;						// Build Number
@@ -1075,7 +1080,10 @@ typedef struct CEDAR
 	UINT FifoBudget;				// Fifo budget
 	SSL_ACCEPT_SETTINGS SslAcceptSettings;	// SSL Accept Settings
 	UINT DhParamBits;  // Bits of Diffie-Hellman parameters
-	char OpenVPNDefaultClientOption[MAX_SIZE];	// OpenVPN Default Client Option String
+	char OpenVPNDefaultClientOption[MAX_SIZE];	// OpenVPN: Default Client Option String
+	bool OpenVPNObfuscation;					// OpenVPN: Obfuscation mode
+	char OpenVPNObfuscationMask[MAX_SIZE];		// OpenVPN: String (mask) for XOR obfuscation
+	bool OpenVPNPushDummyIPv4AddressOnL2Mode;	// OpenVPN: Push a dummy IPv4 address on L2 mode
 } CEDAR;
 
 // Type of CEDAR

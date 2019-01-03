@@ -154,6 +154,9 @@ void SiSetOpenVPNAndSSTPConfig(SERVER *s, OPENVPN_SSTP_CONFIG *c)
 		NormalizeIntListStr(s->OpenVpnServerUdpPorts, sizeof(s->OpenVpnServerUdpPorts),
 			c->OpenVPNPortList, true, ", ");
 
+		s->Cedar->OpenVPNObfuscation = c->OpenVPNObfuscation;
+		StrCpy(s->Cedar->OpenVPNObfuscationMask, sizeof(s->Cedar->OpenVPNObfuscationMask), c->OpenVPNObfuscationMask);
+
 		// Apply the OpenVPN configuration
 		if (s->OpenVpnServerUdp != NULL)
 		{
@@ -194,6 +197,9 @@ void SiGetOpenVPNAndSSTPConfig(SERVER *s, OPENVPN_SSTP_CONFIG *c)
 		}
 
 		StrCpy(c->OpenVPNPortList, sizeof(c->OpenVPNPortList), s->OpenVpnServerUdpPorts);
+
+		c->OpenVPNObfuscation = s->Cedar->OpenVPNObfuscation;
+		StrCpy(c->OpenVPNObfuscationMask, sizeof(c->OpenVPNObfuscationMask), s->Cedar->OpenVPNObfuscationMask);
 	}
 	Unlock(s->OpenVpnSstpConfigLock);
 }
@@ -2534,6 +2540,9 @@ void SiLoadInitialConfiguration(SERVER *s)
 	// Set the server certificate to default
 	SiInitDefaultServerCert(s);
 
+	// Set the character which separates the username from the hub name
+	s->Cedar->UsernameHubSeparator = DEFAULT_USERNAME_HUB_SEPARATOR;
+
 	// Create a default HUB
 	{
 		SiInitDefaultHubList(s);
@@ -2568,6 +2577,8 @@ void SiLoadInitialConfiguration(SERVER *s)
 		{
 			ToStr(c.OpenVPNPortList, OPENVPN_UDP_PORT);
 		}
+
+		c.OpenVPNObfuscation = false;
 
 		SiSetOpenVPNAndSSTPConfig(s, &c);
 
@@ -2933,6 +2944,8 @@ bool SiLoadConfigurationCfg(SERVER *s, FOLDER *root)
 					Free(pw_str);
 					FreeBuf(pw);
 				}
+
+				CfgGetStr(f8, "CustomHttpHeader", t.CustomHttpHeader, sizeof(t.CustomHttpHeader));
 
 				GetMachineHostName(machine_name, sizeof(machine_name));
 
@@ -3303,6 +3316,8 @@ FOLDER *SiWriteConfigurationToCfg(SERVER *s)
 
 				FreeBuf(pw);
 			}
+
+			CfgAddStr(ddns_folder, "CustomHttpHeader", t->CustomHttpHeader);
 		}
 	}
 
@@ -5857,6 +5872,17 @@ void SiLoadServerCfg(SERVER *s, FOLDER *f)
 			}
 		}
 
+		// OpenVPN Push a dummy IPv4 address on L2 mode
+		if (CfgIsItem(f, "OpenVPNPushDummyIPv4AddressOnL2Mode") == false)
+		{
+			// Default enable
+			c->OpenVPNPushDummyIPv4AddressOnL2Mode = true;
+		}
+		else
+		{
+			c->OpenVPNPushDummyIPv4AddressOnL2Mode = CfgGetBool(f, "OpenVPNPushDummyIPv4AddressOnL2Mode");
+		}
+
 		// Disable the NAT-traversal feature
 		s->DisableNatTraversal = CfgGetBool(f, "DisableNatTraversal");
 
@@ -5926,6 +5952,12 @@ void SiLoadServerCfg(SERVER *s, FOLDER *f)
 
 			FreeX(x);
 			FreeK(k);
+		}
+
+		// Character which separates the username from the hub name
+		if (CfgGetStr(f, "UsernameHubSeparator", tmp, sizeof(tmp)))
+		{
+			c->UsernameHubSeparator = IsPrintableAsciiChar(tmp[0]) ? tmp[0] : DEFAULT_USERNAME_HUB_SEPARATOR;
 		}
 
 		// Cipher Name
@@ -5999,6 +6031,16 @@ void SiLoadServerCfg(SERVER *s, FOLDER *f)
 		config.EnableOpenVPN = !s->DisableOpenVPNServer;
 		config.EnableSSTP = !s->DisableSSTPServer;
 		StrCpy(config.OpenVPNPortList, sizeof(config.OpenVPNPortList), tmp);
+
+		config.OpenVPNObfuscation = CfgGetBool(f, "OpenVPNObfuscation");
+
+		if (CfgGetStr(f, "OpenVPNObfuscationMask", tmp, sizeof(tmp)))
+		{
+			if (IsEmptyStr(tmp) == false)
+			{
+				StrCpy(config.OpenVPNObfuscationMask, sizeof(config.OpenVPNObfuscationMask), tmp);
+			}
+		}
 
 		SiSetOpenVPNAndSSTPConfig(s, &config);
 
@@ -6258,6 +6300,8 @@ void SiWriteServerCfg(FOLDER *f, SERVER *s)
 
 		CfgAddStr(f, "OpenVPNDefaultClientOption", c->OpenVPNDefaultClientOption);
 
+		CfgAddBool(f, "OpenVPNPushDummyIPv4AddressOnL2Mode", c->OpenVPNPushDummyIPv4AddressOnL2Mode);
+
 		if (c->Bridge == false)
 		{
 			OPENVPN_SSTP_CONFIG config;
@@ -6271,6 +6315,9 @@ void SiWriteServerCfg(FOLDER *f, SERVER *s)
 			SiGetOpenVPNAndSSTPConfig(s, &config);
 
 			CfgAddStr(f, "OpenVPN_UdpPortList", config.OpenVPNPortList);
+
+			CfgAddBool(f, "OpenVPNObfuscation", config.OpenVPNObfuscation);
+			CfgAddStr(f, "OpenVPNObfuscationMask", config.OpenVPNObfuscationMask);
 		}
 
 		// WebTimePage
@@ -6291,6 +6338,13 @@ void SiWriteServerCfg(FOLDER *f, SERVER *s)
 		b = KToBuf(c->ServerK, false, NULL);
 		CfgAddBuf(f, "ServerKey", b);
 		FreeBuf(b);
+
+		{
+			// Character which separates the username from the hub name
+			char str[2];
+			StrCpy(str, sizeof(str), &c->UsernameHubSeparator);
+			CfgAddStr(f, "UsernameHubSeparator", str);
+		}
 
 		// Traffic information
 		Lock(c->TrafficLock);

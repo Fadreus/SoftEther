@@ -160,6 +160,7 @@ void SmProxyDlgInit(HWND hWnd, INTERNET_SETTING *t)
 	Check(hWnd, R_DIRECT_TCP, t->ProxyType == PROXY_DIRECT);
 	Check(hWnd, R_HTTPS, t->ProxyType == PROXY_HTTP);
 	Check(hWnd, R_SOCKS, t->ProxyType == PROXY_SOCKS);
+	Check(hWnd, R_SOCKS5, t->ProxyType == PROXY_SOCKS5);
 
 	SmProxyDlgUpdate(hWnd, t);
 }
@@ -226,6 +227,10 @@ UINT SmProxyDlg(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, void *param)
 			{
 				t->ProxyType = PROXY_SOCKS;
 			}
+			else if (IsChecked(hWnd, R_SOCKS5))
+			{
+				t->ProxyType = PROXY_SOCKS5;
+			}
 			else
 			{
 				t->ProxyType = PROXY_DIRECT;
@@ -242,6 +247,7 @@ UINT SmProxyDlg(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, void *param)
 			a.ProxyPort = t->ProxyPort;
 			StrCpy(a.ProxyUsername, sizeof(a.ProxyUsername), t->ProxyUsername);
 			StrCpy(a.ProxyPassword, sizeof(a.ProxyPassword), t->ProxyPassword);
+			StrCpy(a.CustomHttpHeader, sizeof(a.CustomHttpHeader), t->CustomHttpHeader);
 
 			if (CmProxyDlg(hWnd, &a))
 			{
@@ -250,6 +256,7 @@ UINT SmProxyDlg(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, void *param)
 				t->ProxyPort = a.ProxyPort;
 				StrCpy(t->ProxyUsername, sizeof(t->ProxyUsername), a.ProxyUsername);
 				StrCpy(t->ProxyPassword, sizeof(t->ProxyPassword), a.ProxyPassword);
+				StrCpy(t->CustomHttpHeader, sizeof(t->CustomHttpHeader), a.CustomHttpHeader);
 			}
 
 			SmProxyDlgUpdate(hWnd, t);
@@ -17011,23 +17018,34 @@ void SmSslDlgInit(HWND hWnd, SM_SSL *s)
 		return;
 	}
 
-	// Set the encryption algorithm list
-	cipher_list = GetCipherList();
-	SetFont(hWnd, C_CIPHER, GetFont("Tahoma", 8, false, false, false, false));
-	CbSetHeight(hWnd, C_CIPHER, 18);
-	for (i = 0;i < cipher_list->NumTokens;i++)
-	{
-		wchar_t tmp[MAX_SIZE];
-		char *name = cipher_list->Token[i];
-		StrToUni(tmp, sizeof(tmp), name);
-		CbAddStr(hWnd, C_CIPHER, tmp, 0);
-	}
-
 	if (s->p != NULL)
 	{
-		// Get the encryption algorithm name from the server
 		RPC_STR t;
 		Zero(&t, sizeof(t));
+
+		SetFont(hWnd, C_CIPHER, GetFont("Tahoma", 8, false, false, false, false));
+		CbSetHeight(hWnd, C_CIPHER, 18);
+
+		// Get the list of available encryption algorithms from the server
+		if (ScGetServerCipherList(s->p->Rpc, &t) == ERR_NO_ERROR)
+		{
+			cipher_list = ParseToken(t.String, ";");
+
+			FreeRpcStr(&t);
+			Zero(&t, sizeof(t));
+
+			for (i = 0; i < cipher_list->NumTokens; i++)
+			{
+				wchar_t tmp[MAX_SIZE];
+				char *name = cipher_list->Token[i];
+				StrToUni(tmp, sizeof(tmp), name);
+				CbAddStr(hWnd, C_CIPHER, tmp, 0);
+			}
+
+			FreeToken(cipher_list);
+		}
+
+		// Get the current encryption algorithm's name from the server
 		if (CALL(hWnd, ScGetServerCipher(s->p->Rpc, &t)))
 		{
 			wchar_t tmp[MAX_SIZE];
@@ -19434,6 +19452,7 @@ void SmEditSettingDlgInit(HWND hWnd, SM_EDIT_SETTING *p)
 	Check(hWnd, R_DIRECT_TCP, s->ClientOption.ProxyType == PROXY_DIRECT);
 	Check(hWnd, R_HTTPS, s->ClientOption.ProxyType == PROXY_HTTP);
 	Check(hWnd, R_SOCKS, s->ClientOption.ProxyType == PROXY_SOCKS);
+	Check(hWnd, R_SOCKS5, s->ClientOption.ProxyType == PROXY_SOCKS5);
 
 	// Management mode setting
 	Check(hWnd, R_SERVER_ADMIN, s->ServerAdminMode);

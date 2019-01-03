@@ -128,6 +128,7 @@
 #define	MEMTAG_TO_POINTER(p)				((void *)(((UCHAR *)(p)) + sizeof(MEMTAG)))
 #define	POINTER_TO_MEMTAG(p)				((MEMTAG *)(((UCHAR *)(p)) - sizeof(MEMTAG)))
 #define	IS_NULL_POINTER(p)					(((p) == NULL) || ((POINTER_TO_UINT64(p) == (UINT64)sizeof(MEMTAG))))
+#define	PTR_TO_PTR(p)						((void **)(&p))
 
 // Fixed size of a block of memory pool
 #define	MEMPOOL_MAX_SIZE					3000
@@ -276,6 +277,7 @@ void *ZeroMalloc(UINT size);
 void *ZeroMallocEx(UINT size, bool zero_clear_when_free);
 void *ReAlloc(void *addr, UINT size);
 void Free(void *addr);
+void FreeSafe(void **addr);
 void CheckMemTag(MEMTAG *tag);
 UINT GetMemSize(void *addr);
 
@@ -396,6 +398,7 @@ bool IsInList(LIST *o, void *p);
 bool IsInListKey(LIST *o, UINT key);
 void *ListKeyToPointer(LIST *o, UINT key);
 bool IsInListStr(LIST *o, char *str);
+bool IsInListUniStr(LIST *o, wchar_t *str);
 bool ReplaceListPointer(LIST *o, void *oldptr, void *newptr);
 void AddInt(LIST *o, UINT i);
 void AddInt64(LIST *o, UINT64 i);

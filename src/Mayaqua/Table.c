@@ -945,6 +945,8 @@ TABLE *ParseTableLine(char *line, char *prefix, UINT prefix_size, LIST *replace_
 			UniReplaceStrEx(tmp, tmp_size, tmp, (wchar_t *)r->name, r->unistr, false);
 		}
 
+		Free(unistr);
+
 		unistr = CopyUniStr(tmp);
 
 		Free(tmp);
@@ -1069,8 +1071,6 @@ void FreeTable()
 		return;
 	}
 
-	TrackingDisable();
-
 	num = LIST_NUM(TableList);
 	tables = ToArray(TableList);
 	for (i = 0;i < num;i++)
@@ -1086,8 +1086,6 @@ void FreeTable()
 	Free(tables);
 
 	Zero(old_table_name, sizeof(old_table_name));
-
-	TrackingEnable();
 }
 
 // Read a string table from the buffer
@@ -1477,8 +1475,6 @@ bool LoadTableW(wchar_t *filename)
 
 	Zero(replace_name, sizeof(replace_name));
 
-	TrackingDisable();
-
 	b = ReadDump("@table_name.txt");
 	if (b != NULL)
 	{
@@ -1498,9 +1494,5 @@ bool LoadTableW(wchar_t *filename)
 
 	ret = LoadTableMain(filename);
 
-	TrackingEnable();
-
 	return ret;
 }
-
-

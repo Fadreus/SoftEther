@@ -972,10 +972,6 @@ SK *NewSkEx(bool no_compact)
 	s->p = Malloc(sizeof(void *) * s->num_reserved);
 	s->no_compact = no_compact;
 
-#ifndef	DONT_USE_KERNEL_STATUS
-//	TrackNewObj(POINTER_TO_UINT64(s), "SK", 0);
-#endif	// DONT_USE_KERNEL_STATUS
-
 	// KS
 	KS_INC(KS_NEWSK_COUNT);
 
@@ -1010,10 +1006,6 @@ void CleanupSk(SK *s)
 	Free(s->p);
 	DeleteLock(s->lock);
 	Free(s);
-
-#ifndef	DONT_USE_KERNEL_STATUS
-//	TrackDeleteObj(POINTER_TO_UINT64(s));
-#endif	// DONT_USE_KERNEL_STATUS
 
 	// KS
 	KS_INC(KS_FREESK_COUNT);
@@ -1278,10 +1270,6 @@ void CleanupQueue(QUEUE *q)
 	DeleteLock(q->lock);
 	Free(q);
 
-#ifndef	DONT_USE_KERNEL_STATUS
-//	TrackDeleteObj(POINTER_TO_UINT64(q));
-#endif	// DONT_USE_KERNEL_STATUS
-
 	// KS
 	KS_INC(KS_FREEQUEUE_COUNT);
 }
@@ -1297,10 +1285,6 @@ QUEUE *NewQueue()
 	q->num_item = 0;
 	q->fifo = NewFifo();
 
-#ifndef	DONT_USE_KERNEL_STATUS
-//	TrackNewObj(POINTER_TO_UINT64(q), "QUEUE", 0);
-#endif	// DONT_USE_KERNEL_STATUS
-
 	// KS
 	KS_INC(KS_NEWQUEUE_COUNT);
 
@@ -1315,10 +1299,6 @@ QUEUE *NewQueueFast()
 	q->ref = NULL;
 	q->num_item = 0;
 	q->fifo = NewFifoFast();
-
-#ifndef	DONT_USE_KERNEL_STATUS
-//	TrackNewObj(POINTER_TO_UINT64(q), "QUEUE", 0);
-#endif	// DONT_USE_KERNEL_STATUS
 
 	// KS
 	KS_INC(KS_NEWQUEUE_COUNT);
@@ -1562,6 +1542,28 @@ bool IsInListStr(LIST *o, char *str)
 	return false;
 }
 
+bool IsInListUniStr(LIST *o, wchar_t *str)
+{
+	UINT i;
+	// Validate arguments
+	if (o == NULL || str == NULL)
+	{
+		return false;
+	}
+
+	for (i = 0; i < LIST_NUM(o); i++)
+	{
+		wchar_t *s = LIST_DATA(o, i);
+
+		if (UniStrCmpi(s, str) == 0)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
 // Get the pointer by scanning by UINT pointer in the list
 void *ListKeyToPointer(LIST *o, UINT key)
 {
@@ -1783,10 +1785,6 @@ void CleanupList(LIST *o)
 
 	// KS
 	KS_INC(KS_FREELIST_COUNT);
-
-#ifndef	DONT_USE_KERNEL_STATUS
-//	TrackDeleteObj(POINTER_TO_UINT64(o));
-#endif	// DONT_USE_KERNEL_STATUS
 }
 
 // Check whether the specified number is already in the list
@@ -2145,10 +2143,6 @@ LIST *NewListEx2(COMPARE *cmp, bool fast, bool fast_malloc)
 	o->cmp = cmp;
 	o->sorted = true;
 
-#ifndef	DONT_USE_KERNEL_STATUS
-//	TrackNewObj(POINTER_TO_UINT64(o), "LIST", 0);
-#endif	//DONT_USE_KERNEL_STATUS
-
 	// KS
 	KS_INC(KS_NEWLIST_COUNT);
 
@@ -2422,10 +2416,6 @@ void CleanupFifo(FIFO *f)
 	Free(f->p);
 	Free(f);
 
-#ifndef	DONT_USE_KERNEL_STATUS
-//	TrackDeleteObj(POINTER_TO_UINT64(f));
-#endif	//DONT_USE_KERNEL_STATUS
-
 	// KS
 	KS_INC(KS_FREEFIFO_COUNT);
 }
@@ -2471,10 +2461,6 @@ FIFO *NewFifoEx2(bool fast, bool fixed)
 	f->memsize = FIFO_INIT_MEM_SIZE;
 	f->p = Malloc(FIFO_INIT_MEM_SIZE);
 	f->fixed = false;
-
-#ifndef	DONT_USE_KERNEL_STATUS
-//	TrackNewObj(POINTER_TO_UINT64(f), "FIFO", 0);
-#endif	// DONT_USE_KERNEL_STATUS
 
 	// KS
 	KS_INC(KS_NEWFIFO_COUNT);
@@ -2792,10 +2778,6 @@ BUF *NewBuf()
 	b->Size = 0;
 	b->Current = 0;
 	b->SizeReserved = INIT_BUF_SIZE;
-
-#ifndef	DONT_USE_KERNEL_STATUS
-//	TrackNewObj(POINTER_TO_UINT64(b), "BUF", 0);
-#endif	// DONT_USE_KERNEL_STATUS
 
 	// KS
 	KS_INC(KS_NEWBUF_COUNT);
@@ -3241,10 +3223,6 @@ void FreeBuf(BUF *b)
 	// KS
 	KS_INC(KS_FREEBUF_COUNT);
 	KS_DEC(KS_CURRENT_BUF_COUNT);
-
-#ifndef	DONT_USE_KERNEL_STATUS
-//	TrackDeleteObj(POINTER_TO_UINT64(b));
-#endif	// DONT_USE_KERNEL_STATUS
 }
 
 // Compare BUFs whether two are identical
@@ -3799,10 +3777,21 @@ void Free(void *addr)
 	InternalFree(tag);
 }
 
+// Free and set pointer's value to NULL
+void FreeSafe(void **addr)
+{
+	Free(*addr);
+	*addr = NULL;
+}
+
 // Check the memtag
 void CheckMemTag(MEMTAG *tag)
 {
-#ifndef	DONT_CHECK_HEAP
+	if (IsTrackingEnabled() == false)
+	{
+		return;
+	}
+
 	// Validate arguments
 	if (tag == NULL)
 	{
@@ -3815,7 +3804,6 @@ void CheckMemTag(MEMTAG *tag)
 		AbortExitEx("CheckMemTag: tag->Magic != MEMTAG_MAGIC");
 		return;
 	}
-#endif	// DONT_CHECK_HEAP
 }
 
 // ZeroMalloc
@@ -3859,9 +3847,7 @@ void *InternalMalloc(UINT size)
 		OSSleep(MEMORY_SLEEP_TIME);
 	}
 
-#ifndef	DONT_USE_KERNEL_STATUS
 	TrackNewObj(POINTER_TO_UINT64(addr), "MEM", size);
-#endif	//DONT_USE_KERNEL_STATUS
 
 	return addr;
 }
@@ -3879,9 +3865,7 @@ void InternalFree(void *addr)
 	KS_DEC(KS_CURRENT_MEM_COUNT);
 	KS_INC(KS_FREE_COUNT);
 
-#ifndef	DONT_USE_KERNEL_STATUS
 	TrackDeleteObj(POINTER_TO_UINT64(addr));
-#endif	// DONT_USE_KERNEL_STATUS
 
 	// Memory release
 	OSMemoryFree(addr);
@@ -3914,9 +3898,7 @@ void *InternalReAlloc(void *addr, UINT size)
 		OSSleep(MEMORY_SLEEP_TIME);
 	}
 
-#ifndef	DONT_USE_KERNEL_STATUS
 	TrackChangeObjSize(POINTER_TO_UINT64(addr), size, POINTER_TO_UINT64(new_addr));
-#endif	// DONT_USE_KERNEL_STATUS
 
 	return new_addr;
 }

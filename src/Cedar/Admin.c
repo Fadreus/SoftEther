@@ -456,6 +456,7 @@ PACK *AdminDispatch(RPC *rpc, char *name, PACK *p)
 	DECLARE_RPC("GetFarmConnectionStatus", RPC_FARM_CONNECTION_STATUS, StGetFarmConnectionStatus, InRpcFarmConnectionStatus, OutRpcFarmConnectionStatus)
 	DECLARE_RPC_EX("SetServerCert", RPC_KEY_PAIR, StSetServerCert, InRpcKeyPair, OutRpcKeyPair, FreeRpcKeyPair)
 	DECLARE_RPC_EX("GetServerCert", RPC_KEY_PAIR, StGetServerCert, InRpcKeyPair, OutRpcKeyPair, FreeRpcKeyPair)
+	DECLARE_RPC_EX("GetServerCipherList", RPC_STR, StGetServerCipherList, InRpcStr, OutRpcStr, FreeRpcStr)
 	DECLARE_RPC_EX("GetServerCipher", RPC_STR, StGetServerCipher, InRpcStr, OutRpcStr, FreeRpcStr)
 	DECLARE_RPC_EX("SetServerCipher", RPC_STR, StSetServerCipher, InRpcStr, OutRpcStr, FreeRpcStr)
 	DECLARE_RPC("CreateHub", RPC_CREATE_HUB, StCreateHub, InRpcCreateHub, OutRpcCreateHub)
@@ -635,6 +636,7 @@ DECLARE_SC_EX("EnumFarmMember", RPC_ENUM_FARM, ScEnumFarmMember, InRpcEnumFarm, 
 DECLARE_SC("GetFarmConnectionStatus", RPC_FARM_CONNECTION_STATUS, ScGetFarmConnectionStatus, InRpcFarmConnectionStatus, OutRpcFarmConnectionStatus)
 DECLARE_SC_EX("SetServerCert", RPC_KEY_PAIR, ScSetServerCert, InRpcKeyPair, OutRpcKeyPair, FreeRpcKeyPair)
 DECLARE_SC_EX("GetServerCert", RPC_KEY_PAIR, ScGetServerCert, InRpcKeyPair, OutRpcKeyPair, FreeRpcKeyPair)
+DECLARE_SC_EX("GetServerCipherList", RPC_STR, ScGetServerCipherList, InRpcStr, OutRpcStr, FreeRpcStr)
 DECLARE_SC_EX("GetServerCipher", RPC_STR, ScGetServerCipher, InRpcStr, OutRpcStr, FreeRpcStr)
 DECLARE_SC_EX("SetServerCipher", RPC_STR, ScSetServerCipher, InRpcStr, OutRpcStr, FreeRpcStr)
 DECLARE_SC("CreateHub", RPC_CREATE_HUB, ScCreateHub, InRpcCreateHub, OutRpcCreateHub)
@@ -5580,19 +5582,16 @@ UINT StAddAccess(ADMIN *a, RPC_ADD_ACCESS *t)
 
 	if (no_include)
 	{
-		if (no_include)
+		if (StartWith(t->Access.SrcUsername, ACCESS_LIST_INCLUDED_PREFIX) ||
+			StartWith(t->Access.SrcUsername, ACCESS_LIST_EXCLUDED_PREFIX))
 		{
-			if (StartWith(t->Access.SrcUsername, ACCESS_LIST_INCLUDED_PREFIX) ||
-				StartWith(t->Access.SrcUsername, ACCESS_LIST_EXCLUDED_PREFIX))
-			{
-				ClearStr(t->Access.SrcUsername, sizeof(t->Access.SrcUsername));
-			}
+			ClearStr(t->Access.SrcUsername, sizeof(t->Access.SrcUsername));
+		}
 
-			if (StartWith(t->Access.DestUsername, ACCESS_LIST_INCLUDED_PREFIX) ||
-				StartWith(t->Access.DestUsername, ACCESS_LIST_EXCLUDED_PREFIX))
-			{
-				ClearStr(t->Access.DestUsername, sizeof(t->Access.DestUsername));
-			}
+		if (StartWith(t->Access.DestUsername, ACCESS_LIST_INCLUDED_PREFIX) ||
+			StartWith(t->Access.DestUsername, ACCESS_LIST_EXCLUDED_PREFIX))
+		{
+			ClearStr(t->Access.DestUsername, sizeof(t->Access.DestUsername));
 		}
 	}
 
@@ -8248,6 +8247,43 @@ UINT StGetServerCipher(ADMIN *a, RPC_STR *t)
 	return ERR_NO_ERROR;
 }
 
+// Get list of available ciphers for SSL
+UINT StGetServerCipherList(ADMIN *a, RPC_STR *t)
+{
+	SERVER *s = a->Server;
+	CEDAR *c = s->Cedar;
+
+	FreeRpcStr(t);
+	Zero(t, sizeof(RPC_STR));
+
+	Lock(c->lock);
+	{
+		UINT i;
+		TOKEN_LIST *ciphers = GetCipherList();
+		if (ciphers->NumTokens > 0)
+		{
+			UINT size = StrSize(ciphers->Token[0]);
+			t->String = Malloc(size);
+			StrCat(t->String, size, ciphers->Token[0]);
+			i = 1;
+
+			for (; i < ciphers->NumTokens; i++)
+			{
+				// We use StrSize() because we need the extra space for ';'
+				size += StrSize(ciphers->Token[i]);
+				t->String = ReAlloc(t->String, size);
+				StrCat(t->String, size, ";");
+				StrCat(t->String, size, ciphers->Token[i]);
+			}
+		}
+
+		FreeToken(ciphers);
+	}
+	Unlock(c->lock);
+
+	return ERR_NO_ERROR;
+}
+
 // Get the server certification
 UINT StGetServerCert(ADMIN *a, RPC_KEY_PAIR *t)
 {
@@ -8922,6 +8958,8 @@ void InOpenVpnSstpConfig(OPENVPN_SSTP_CONFIG *t, PACK *p)
 	t->EnableOpenVPN = PackGetBool(p, "EnableOpenVPN");
 	t->EnableSSTP = PackGetBool(p, "EnableSSTP");
 	PackGetStr(p, "OpenVPNPortList", t->OpenVPNPortList, sizeof(t->OpenVPNPortList));
+	t->OpenVPNObfuscation= PackGetBool(p, "OpenVPNObfuscation");
+	PackGetStr(p, "OpenVPNObfuscationMask", t->OpenVPNObfuscationMask, sizeof(t->OpenVPNObfuscationMask));
 }
 void OutOpenVpnSstpConfig(PACK *p, OPENVPN_SSTP_CONFIG *t)
 {
@@ -8934,6 +8972,8 @@ void OutOpenVpnSstpConfig(PACK *p, OPENVPN_SSTP_CONFIG *t)
 	PackAddBool(p, "EnableOpenVPN", t->EnableOpenVPN);
 	PackAddBool(p, "EnableSSTP", t->EnableSSTP);
 	PackAddStr(p, "OpenVPNPortList", t->OpenVPNPortList);
+	PackAddBool(p, "OpenVPNObfuscation", t->OpenVPNObfuscation);
+	PackAddStr(p, "OpenVPNObfuscationMask", t->OpenVPNObfuscationMask);
 }
 
 // DDNS_CLIENT_STATUS
@@ -8987,6 +9027,7 @@ void InRpcInternetSetting(INTERNET_SETTING *t, PACK *p)
 	t->ProxyPort = PackGetInt(p, "ProxyPort");
 	PackGetStr(p, "ProxyUsername", t->ProxyUsername, sizeof(t->ProxyUsername));
 	PackGetStr(p, "ProxyPassword", t->ProxyPassword, sizeof(t->ProxyPassword));
+	PackGetStr(p, "CustomHttpHeader", t->CustomHttpHeader, sizeof(t->CustomHttpHeader));
 }
 void OutRpcInternetSetting(PACK *p, INTERNET_SETTING *t)
 {
@@ -9001,6 +9042,7 @@ void OutRpcInternetSetting(PACK *p, INTERNET_SETTING *t)
 	PackAddInt(p, "ProxyPort", t->ProxyPort);
 	PackAddStr(p, "ProxyUsername", t->ProxyUsername);
 	PackAddStr(p, "ProxyPassword", t->ProxyPassword);
+	PackAddStr(p, "CustomHttpHeader", t->CustomHttpHeader);
 }
 
 // RPC_AZURE_STATUS
