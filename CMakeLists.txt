@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.7)
 
 project("SoftEther VPN"
-  VERSION 5.01.9667
+  VERSION 5.01.9669
   LANGUAGES C
 )
 
@@ -85,7 +85,7 @@ if(UNIX)
   set(CPACK_RPM_COMPONENT_INSTALL ON)
   set(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
   set(CPACK_RPM_PACKAGE_GROUP "Applications/Internet")
-  set(CPACK_RPM_PACKAGE_LICENSE "GPLv2")
+  set(CPACK_RPM_PACKAGE_LICENSE "ASL 2.0")
 
   include(CPack)
 endif()
