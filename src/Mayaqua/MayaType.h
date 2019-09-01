@@ -347,6 +347,9 @@ typedef struct PRAND PRAND;
 // Str.h
 typedef struct TOKEN_LIST TOKEN_LIST;
 typedef struct INI_ENTRY INI_ENTRY;
+typedef struct JSON_OBJECT JSON_OBJECT;
+typedef struct JSON_ARRAY  JSON_ARRAY;
+typedef struct JSON_VALUE  JSON_VALUE;
 
 // Internat.h
 typedef struct UNI_TOKEN_LIST UNI_TOKEN_LIST;
@@ -383,6 +386,8 @@ typedef struct INSTANCE INSTANCE;
 typedef struct VALUE VALUE;
 typedef struct ELEMENT ELEMENT;
 typedef struct PACK PACK;
+typedef struct JSONPACKHINT JSONPACKHINT;
+typedef struct JSONPACKHINT_ITEM JSONPACKHINT_ITEM;
 
 // Cfg.h
 typedef struct FOLDER FOLDER;
@@ -416,6 +421,7 @@ typedef struct TUBEPAIR_DATA TUBEPAIR_DATA;
 typedef struct UDPLISTENER UDPLISTENER;
 typedef struct UDPLISTENER_SOCK UDPLISTENER_SOCK;
 typedef struct UDPPACKET UDPPACKET;
+typedef struct TCP_RAW_DATA TCP_RAW_DATA;
 typedef struct INTERRUPT_MANAGER INTERRUPT_MANAGER;
 typedef struct TUBE_FLUSH_LIST TUBE_FLUSH_LIST;
 typedef struct ICMP_RESULT ICMP_RESULT;

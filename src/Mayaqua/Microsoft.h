@@ -847,6 +847,8 @@ bool MsIsInfCatalogRequired();
 
 bool MsCheckFileDigitalSignatureW(HWND hWnd, wchar_t *name, bool *danger);
 
+bool MsIsKB3033929RequiredAndMissing();
+bool MsIsSha2KernelModeSignatureSupported();
 
 bool MsGetProcessExeName(char *path, UINT size, UINT id);
 bool MsGetWindowOwnerProcessExeName(char *path, UINT size, HWND hWnd);
@@ -884,6 +886,7 @@ bool MsIsWinXPOrWinVista();
 bool MsGetFileInformation(void *h, void *info);
 void MsSetErrorModeToSilent();
 void MsSetEnableMinidump(bool enabled);
+bool MsIsMinidumpEnabled();
 void MsWriteMinidump(wchar_t *filename, void *ex);
 
 

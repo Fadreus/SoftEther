@@ -456,6 +456,16 @@ struct TUBEPAIR_DATA
 	SOCK_EVENT *SockEvent1, *SockEvent2;	// SockEvent
 };
 
+// TCP raw data
+struct TCP_RAW_DATA
+{
+	IP SrcIP;							// Source IP address
+	IP DstIP;							// Destination IP address
+	UINT SrcPort;						// Source port
+	UINT DstPort;						// Destination port
+	FIFO *Data;							// Data body
+};
+
 // UDP listener socket entry
 struct UDPLISTENER_SOCK
 {
@@ -496,6 +506,7 @@ struct UDPLISTENER
 	UINT64 LastCheckTick;				// Time which the socket list was checked last
 	UDPLISTENER_RECV_PROC *RecvProc;	// Receive procedure
 	LIST *SendPacketList;				// Transmission packet list
+	UINT PacketType;					// The type to set when creating an UDPPACKET
 	void *Param;						// Parameters
 	INTERRUPT_MANAGER *Interrupts;		// Interrupt manager
 	bool HostIPAddressListChanged;		// IP address list of the host has changed
@@ -953,6 +964,7 @@ UINT GetContentLength(HTTP_HEADER *header);
 void GetHttpDateStr(char *str, UINT size, UINT64 t);
 bool HttpSendForbidden(SOCK *s, char *target, char *server_id);
 bool HttpSendNotFound(SOCK *s, char *target);
+bool HttpSendBody(SOCK *s, void *data, UINT size, char *contents_type);
 bool HttpSendNotImplemented(SOCK *s, char *method, char *target, char *version);
 bool HttpServerSend(SOCK *s, PACK *p);
 bool HttpClientSend(SOCK *s, PACK *p);
@@ -1193,6 +1205,7 @@ void SendAdd(SOCK *sock, void *data, UINT size);
 bool SendNow(SOCK *sock, int secure);
 bool RecvAll(SOCK *sock, void *data, UINT size, bool secure);
 bool RecvAllEx(SOCK *sock, void **data_new_ptr, UINT size, bool secure);
+bool RecvAllWithDiscard(SOCK *sock, UINT size, bool secure);
 void InitSockSet(SOCKSET *set);
 void AddSockSet(SOCKSET *set, SOCK *sock);
 CANCEL *NewCancel();
@@ -1308,6 +1321,7 @@ void SocketTimeoutThread(THREAD *t, void *param);
 SOCKET_TIMEOUT_PARAM *NewSocketTimeout(SOCK *sock);
 void FreeSocketTimeout(SOCKET_TIMEOUT_PARAM *ttp);
 
+void CopyIP(IP *dst, IP *src);
 bool IsIP6(IP *ip);
 bool IsIP4(IP *ip);
 void IPv6AddrToIP(IP *ip, IPV6_ADDR *addr);
@@ -1402,12 +1416,15 @@ int CmpIpAddressList(void *p1, void *p2);
 UINT64 GetHostIPAddressListHash();
 
 UDPLISTENER *NewUdpListener(UDPLISTENER_RECV_PROC *recv_proc, void *param, IP *listen_ip);
+UDPLISTENER *NewUdpListenerEx(UDPLISTENER_RECV_PROC *recv_proc, void *param, IP *listen_ip, UINT packet_type);
 void UdpListenerThread(THREAD *thread, void *param);
 void FreeUdpListener(UDPLISTENER *u);
 void AddPortToUdpListener(UDPLISTENER *u, UINT port);
 void DeletePortFromUdpListener(UDPLISTENER *u, UINT port);
 void DeleteAllPortFromUdpListener(UDPLISTENER *u);
 void UdpListenerSendPackets(UDPLISTENER *u, LIST *packet_list);
+TCP_RAW_DATA *NewTcpRawData(IP *src_ip, UINT src_port, IP *dst_ip, UINT dst_port);
+void FreeTcpRawData(TCP_RAW_DATA *trd);
 UDPPACKET *NewUdpPacket(IP *src_ip, UINT src_port, IP *dst_ip, UINT dst_port, void *data, UINT size);
 void FreeUdpPacket(UDPPACKET *p);
 UDPLISTENER_SOCK *DetermineUdpSocketForSending(UDPLISTENER *u, UDPPACKET *p);

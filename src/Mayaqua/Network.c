@@ -5563,7 +5563,7 @@ int SslCertVerifyCallback(int preverify_ok, X509_STORE_CTX *ctx)
 		if (!preverify_ok)
 		{
 			const char *msg = X509_verify_cert_error_string(clientcert->PreverifyErr);
-			StrCpy(clientcert->PreverifyErrMessage, PREVERIFY_ERR_MESSAGE_SIZE, msg);
+			StrCpy(clientcert->PreverifyErrMessage, PREVERIFY_ERR_MESSAGE_SIZE, (char *)msg);
 			Debug("SslCertVerifyCallback preverify error: '%s'\n", msg);
 		}
 		else
@@ -7227,6 +7227,12 @@ bool IsIP4(IP *ip)
 	}
 
 	return (IsIP6(ip) ? false : true);
+}
+
+// Copy the IP address
+void CopyIP(IP *dst, IP *src)
+{
+	Copy(dst, src, sizeof(IP));
 }
 
 // Get the number of clients connected from the specified IP address
@@ -11366,6 +11372,50 @@ void InitSockSet(SOCKSET *set)
 	}
 
 	Zero(set, sizeof(SOCKSET));
+}
+
+// Receive data and discard all of them
+bool RecvAllWithDiscard(SOCK *sock, UINT size, bool secure)
+{
+	static UCHAR buffer[4096];
+	UINT recv_size, sz, ret;
+	if (sock == NULL)
+	{
+		return false;
+	}
+	if (size == 0)
+	{
+		return true;
+	}
+	if (sock->AsyncMode)
+	{
+		return false;
+	}
+
+	recv_size = 0;
+
+	while (true)
+	{
+		sz = MIN(size - recv_size, sizeof(buffer));
+		ret = Recv(sock, buffer, sz, secure);
+		if (ret == 0)
+		{
+			return false;
+		}
+		if (ret == SOCK_LATER)
+		{
+			// I suppose that this is safe because the RecvAll() function is used only 
+			// if the sock->AsyncMode == true. And the Recv() function may return
+			// SOCK_LATER only if the sock->AsyncMode == false. Therefore the call of 
+			// Recv() function in the RecvAll() function never returns SOCK_LATER.
+			return false;
+		}
+		recv_size += ret;
+		if (recv_size >= size)
+		{
+			return true;
+		}
+	}
 }
 
 // Receive all by TCP
@@ -16482,12 +16532,12 @@ TOKEN_LIST *GetCipherList()
 	sk = SSL_get_ciphers(ssl);
 #endif
 
-	for (i = 0; i < sk_SSL_CIPHER_num(sk); i++)
+	for (i = 0; i < (UINT)sk_SSL_CIPHER_num(sk); i++)
 	{
 		const SSL_CIPHER *c = sk_SSL_CIPHER_value(sk, i);
 
 		name = SSL_CIPHER_get_name(c);
-		if (IsEmptyStr(name))
+		if (IsEmptyStr((char *)name))
 		{
 			break;
 		}
@@ -16503,7 +16553,7 @@ TOKEN_LIST *GetCipherList()
 			ciphers->Token = Malloc(sizeof(char *));
 		}
 
-		ciphers->Token[i] = CopyStr(name);
+		ciphers->Token[i] = CopyStr((char *)name);
 	}
 
 	sk_SSL_CIPHER_free(sk);
@@ -18742,6 +18792,8 @@ LABEL_FATAL_ERROR:
 							p->SrcPort = p->DestPort = MAKE_SPECIAL_PORT(50);
 						}
 
+						p->Type = u->PacketType;
+
 						Add(recv_list, p);
 					}
 
@@ -18930,6 +18982,40 @@ UDPLISTENER_SOCK *DetermineUdpSocketForSending(UDPLISTENER *u, UDPPACKET *p)
 	return NULL;
 }
 
+void FreeTcpRawData(TCP_RAW_DATA *trd)
+{
+	// Validate arguments
+	if (trd == NULL)
+	{
+		return;
+	}
+
+	ReleaseFifo(trd->Data);
+	Free(trd);
+}
+
+TCP_RAW_DATA *NewTcpRawData(IP *src_ip, UINT src_port, IP *dst_ip, UINT dst_port)
+{
+	TCP_RAW_DATA *trd;
+	// Validate arguments
+	if (dst_ip == NULL || dst_port == 0)
+	{
+		return NULL;
+	}
+
+	trd = ZeroMalloc(sizeof(TCP_RAW_DATA));
+
+	Copy(&trd->SrcIP, src_ip, sizeof(IP));
+	trd->SrcPort = src_port;
+
+	Copy(&trd->DstIP, dst_ip, sizeof(IP));
+	trd->DstPort = dst_port;
+
+	trd->Data = NewFifoFast();
+
+	return trd;
+}
+
 // Release of the UDP packet
 void FreeUdpPacket(UDPPACKET *p)
 {
@@ -19001,6 +19087,11 @@ void UdpListenerSendPackets(UDPLISTENER *u, LIST *packet_list)
 // Creating a UDP listener
 UDPLISTENER *NewUdpListener(UDPLISTENER_RECV_PROC *recv_proc, void *param, IP *listen_ip)
 {
+	return NewUdpListenerEx(recv_proc, param, listen_ip, INFINITE);
+}
+
+UDPLISTENER *NewUdpListenerEx(UDPLISTENER_RECV_PROC *recv_proc, void *param, IP *listen_ip, UINT packet_type)
+{
 	UDPLISTENER *u;
 	// Validate arguments
 	if (recv_proc == NULL)
@@ -19011,6 +19102,7 @@ UDPLISTENER *NewUdpListener(UDPLISTENER_RECV_PROC *recv_proc, void *param, IP *l
 	u = ZeroMalloc(sizeof(UDPLISTENER));
 
 	u->Param = param;
+	u->PacketType = packet_type;
 
 	u->PortList = NewList(NULL);
 	u->Event = NewSockEvent();
