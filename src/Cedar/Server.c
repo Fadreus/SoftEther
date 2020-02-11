@@ -9,12 +9,12 @@
 
 static SERVER *server = NULL;
 static LOCK *server_lock = NULL;
-char *SERVER_CONFIG_FILE_NAME = "@vpn_server.config";
-char *SERVER_CONFIG_FILE_NAME_IN_CLIENT = "@vpn_gate_svc.config";
-char *SERVER_CONFIG_FILE_NAME_IN_CLIENT_RELAY = "@vpn_gate_relay.config";
-char *BRIDGE_CONFIG_FILE_NAME = "@vpn_bridge.config";
-char *SERVER_CONFIG_TEMPLATE_NAME = "@vpn_server_template.config";
-char *BRIDGE_CONFIG_TEMPLATE_NAME = "@vpn_server_template.config";
+char *SERVER_CONFIG_FILE_NAME = "$vpn_server.config";
+char *SERVER_CONFIG_FILE_NAME_IN_CLIENT = "$vpn_gate_svc.config";
+char *SERVER_CONFIG_FILE_NAME_IN_CLIENT_RELAY = "$vpn_gate_relay.config";
+char *BRIDGE_CONFIG_FILE_NAME = "$vpn_bridge.config";
+char *SERVER_CONFIG_TEMPLATE_NAME = "$vpn_server_template.config";
+char *BRIDGE_CONFIG_TEMPLATE_NAME = "$vpn_server_template.config";
 
 static bool server_reset_setting = false;
 
@@ -964,16 +964,16 @@ LIST *EnumLogFile(char *hubname)
 		hubname = NULL;
 	}
 
-	GetExeDir(exe_dir, sizeof(exe_dir));
+	GetLogDir(exe_dir, sizeof(exe_dir));
 
 	// Enumerate in the server_log
 	if (hubname == NULL)
 	{
-		EnumLogFileDir(o, "server_log");
+		EnumLogFileDir(o, SERVER_LOG_DIR);
 	}
 
 	// Enumerate in the packet_log
-	Format(tmp, sizeof(tmp), "%s/packet_log", exe_dir);
+	Format(tmp, sizeof(tmp), "%s/"HUB_PACKET_LOG_DIR, exe_dir);
 
 	if (hubname == NULL)
 	{
@@ -988,7 +988,7 @@ LIST *EnumLogFile(char *hubname)
 				if (e->Folder)
 				{
 					char dir_name[MAX_PATH];
-					Format(dir_name, sizeof(dir_name), "packet_log/%s", e->FileName);
+					Format(dir_name, sizeof(dir_name), HUB_PACKET_LOG_DIR"/%s", e->FileName);
 					EnumLogFileDir(o, dir_name);
 				}
 			}
@@ -1000,13 +1000,13 @@ LIST *EnumLogFile(char *hubname)
 	{
 		char dir_name[MAX_PATH];
 
-		Format(dir_name, sizeof(dir_name), "packet_log/%s", hubname);
+		Format(dir_name, sizeof(dir_name), HUB_PACKET_LOG_DIR"/%s", hubname);
 
 		EnumLogFileDir(o, dir_name);
 	}
 
 	// Enumerate in the security_log
-	Format(tmp, sizeof(tmp), "%s/security_log", exe_dir);
+	Format(tmp, sizeof(tmp), "%s/"HUB_SECURITY_LOG_DIR, exe_dir);
 
 	if (hubname == NULL)
 	{
@@ -1022,7 +1022,7 @@ LIST *EnumLogFile(char *hubname)
 				{
 					char dir_name[MAX_PATH];
 
-					Format(dir_name, sizeof(dir_name), "security_log/%s", e->FileName);
+					Format(dir_name, sizeof(dir_name), HUB_SECURITY_LOG_DIR"/%s", e->FileName);
 
 					EnumLogFileDir(o, dir_name);
 				}
@@ -1035,7 +1035,7 @@ LIST *EnumLogFile(char *hubname)
 	{
 		char dir_name[MAX_PATH];
 
-		Format(dir_name, sizeof(dir_name), "security_log/%s", hubname);
+		Format(dir_name, sizeof(dir_name), HUB_SECURITY_LOG_DIR"/%s", hubname);
 
 		EnumLogFileDir(o, dir_name);
 	}
@@ -1056,7 +1056,7 @@ void EnumLogFileDir(LIST *o, char *dirname)
 		return;
 	}
 
-	GetExeDir(exe_dir, sizeof(exe_dir));
+	GetLogDir(exe_dir, sizeof(exe_dir));
 	Format(dir_full_path, sizeof(dir_full_path), "%s/%s", exe_dir, dirname);
 
 	dir = EnumDir(dir_full_path);
@@ -5821,6 +5821,9 @@ void SiLoadServerCfg(SERVER *s, FOLDER *f)
 		// Disable the NAT-traversal feature
 		s->DisableNatTraversal = CfgGetBool(f, "DisableNatTraversal");
 
+		// Disable IPsec's aggressive mode
+		s->DisableIPsecAggressiveMode = CfgGetBool(f, "DisableIPsecAggressiveMode");
+
 		if (s->Cedar->Bridge == false)
 		{
 			// Enable the VPN-over-ICMP
@@ -6236,6 +6239,8 @@ void SiWriteServerCfg(FOLDER *f, SERVER *s)
 				CfgAddBool(f, "DisableOpenVPNServer", s->DisableOpenVPNServer);
 			}
 		}
+
+		CfgAddBool(f, "DisableIPsecAggressiveMode", s->DisableIPsecAggressiveMode);
 
 		CfgAddStr(f, "OpenVPNDefaultClientOption", c->OpenVPNDefaultClientOption);
 
@@ -10099,12 +10104,17 @@ void SiFarmServMain(SERVER *server, SOCK *sock, FARM_MEMBER *f)
 				}
 
 				// Receive
-				p = HttpServerRecv(sock);
+				p = HttpServerRecvEx(sock, FIRM_SERV_RECV_PACK_MAX_SIZE);
 
 				t->Response = p;
 				Set(t->CompleteEvent);
 
-				send_noop = false;
+				if (p == NULL)
+				{
+					// Avoid infinite loop
+					Disconnect(sock);
+					goto DISCONNECTED;
+				}
 			}
 		}
 		while (t != NULL);

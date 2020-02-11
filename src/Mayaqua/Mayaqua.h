@@ -8,6 +8,10 @@
 #ifndef	MAYAQUA_H
 #define	MAYAQUA_H
 
+#include <stdarg.h>
+#include <stddef.h>
+#include <stdio.h>
+
 // PenCore.dll related
 #define	PENCORE_DLL_NAME		"|PenCore.dll"
 // #define	PENCORE_DLL_NAME_X64	"|PenCore_x64.dll" // commonized to x86
@@ -269,6 +273,12 @@ int iconv_close (iconv_t __cd);
 
 // TCP/IP
 #include <Mayaqua/TcpIp.h>
+
+// HTTP
+#include <Mayaqua/HTTP.h>
+
+// Proxy
+#include <Mayaqua/Proxy.h>
 
 // 64 bit real-time clock
 #include <Mayaqua/Tick64.h>

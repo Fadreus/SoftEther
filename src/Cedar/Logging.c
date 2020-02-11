@@ -14,11 +14,11 @@ static char *delete_targets[] =
 	"backup.vpn_server.config",
 	"backup.vpn_gate_svc.config",
 	"backup.etherlogger.config",
-	"packet_log",
-	"etherlogger_log",
+	HUB_PACKET_LOG_DIR,
+	EL_PACKET_LOG_DIR,
 	"secure_nat_log",
-	"security_log",
-	"server_log",
+	HUB_SECURITY_LOG_DIR,
+	SERVER_LOG_DIR,
 	"bridge_log",
 	"packet_log_archive",
 	"azure_log",
@@ -419,7 +419,7 @@ ERASER *NewEraser(LOG *log, UINT64 min_size)
 
 	e = ZeroMalloc(sizeof(ERASER));
 
-	GetExeDir(dir, sizeof(dir));
+	GetLogDir(dir, sizeof(dir));
 
 	e->Log = log;
 	e->MinFreeSpace = min_size;
@@ -1243,10 +1243,17 @@ void AddLogBufToStr(BUF *b, char *name, char *value)
 void MakeSafeLogStr(char *str)
 {
 	UINT i, len;
+	bool is_http = false;
 	// Validate arguments
 	if (str == NULL)
 	{
 		return;
+	}
+
+	if (str[0] == 'h' && str[1] == 't' && str[2] == 't' && str[3] == 'p' &&
+		((str[4] == 's' && str[5] == ':') || (str[4] == ':')))
+	{
+		is_http = true;
 	}
 
 	EnPrintableAsciiStr(str, '?');
@@ -1260,7 +1267,10 @@ void MakeSafeLogStr(char *str)
 		}
 		else if (str[i] == ' ')
 		{
-			str[i] = '_';
+			if (is_http == false)
+			{
+				str[i] = '_';
+			}
 		}
 	}
 }
@@ -2007,8 +2017,6 @@ void ReplaceForCsv(char *str)
 		return;
 	}
 
-	// If there are blanks, trim it
-	Trim(str);
 	len = StrLen(str);
 
 	for (i = 0;i < len;i++)
@@ -2181,7 +2189,7 @@ void MakeLogFileNameStringFromTick(LOG *g, char *str, UINT size, UINT64 tick, UI
 		break;
 
 	default:				// Without switching
-		snprintf(str, size, "%s");
+		StrCpy(str, size, "");
 		break;
 	}
 

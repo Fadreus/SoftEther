@@ -9696,6 +9696,15 @@ UINT StSetFarmSetting(ADMIN *a, RPC_FARM *t)
 		return ERR_NOT_SUPPORTED;
 	}
 
+	if (IsZero(t->MemberPassword, sizeof(t->MemberPassword)))
+	{
+		if (IsEmptyStr(t->MemberPasswordPlaintext) == false)
+		{
+			// For JSON-RPC
+			HashAdminPassword(t->MemberPassword, t->MemberPasswordPlaintext);
+		}
+	}
+
 	ALog(a, NULL, "LA_SET_FARM_SETTING");
 
 	IncrementServerConfigRevision(a->Server);
@@ -11426,7 +11435,7 @@ void SiReadLocalLogFile(SERVER *s, char *filepath, UINT offset, RPC_READ_LOG_FIL
 
 	Zero(t, sizeof(RPC_READ_LOG_FILE));
 
-	GetExeDir(exe_dir, sizeof(exe_dir));
+	GetLogDir(exe_dir, sizeof(exe_dir));
 	Format(full_path, sizeof(full_path), "%s/%s", exe_dir, filepath);
 
 	// Read file

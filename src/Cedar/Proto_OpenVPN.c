@@ -95,45 +95,42 @@ bool OvsProcessData(void *param, TCP_RAW_DATA *received_data, FIFO *data_to_send
 	while (true)
 	{
 		UDPPACKET *packet;
-		UCHAR *packet_ptr;
-		UINT packet_size, total_packet_size;
-		FIFO *recv_fifo = received_data->Data;
-		const UINT data_size = FifoSize(recv_fifo);
+		USHORT payload_size, packet_size;
+		FIFO *fifo = received_data->Data;
+		const UINT fifo_size = FifoSize(fifo);
 
-		if (data_size < sizeof(USHORT))
+		if (fifo_size < sizeof(USHORT))
 		{
-			// Corrupt data
+			// Non-arrival
 			break;
 		}
 
-		packet_size = READ_USHORT(FifoPtr(recv_fifo));
+		// The beginning of a packet contains the data size
+		payload_size = READ_USHORT(FifoPtr(fifo));
+		packet_size = payload_size + sizeof(USHORT);
 
-		if (packet_size == 0 || packet_size > sizeof(buf))
+		if (payload_size == 0 || packet_size > sizeof(buf))
 		{
-			// Invalid packet size
 			ret = false;
+			Debug("OvsProcessData(): Invalid payload size: %u bytes\n", payload_size);
 			break;
 		}
 
-		total_packet_size = packet_size + sizeof(USHORT);
-
-		if (data_size < total_packet_size)
+		if (fifo_size < packet_size)
 		{
-			// Corrupt data
+			// Non-arrival
 			break;
 		}
 
-		if (ReadFifo(recv_fifo, buf, total_packet_size) != total_packet_size)
+		if (ReadFifo(fifo, buf, packet_size) != packet_size)
 		{
-			// Mismatch
 			ret = false;
+			Debug("OvsProcessData(): ReadFifo() failed to read the packet\n");
 			break;
 		}
 
-		// Read one packet and put it in the list
-		packet_ptr = buf + sizeof(USHORT);
-
-		packet = NewUdpPacket(&received_data->SrcIP, received_data->SrcPort, &received_data->DstIP, received_data->DstPort, Clone(packet_ptr, packet_size), packet_size);
+		// Insert packet into the list
+		packet = NewUdpPacket(&received_data->SrcIP, received_data->SrcPort, &received_data->DstIP, received_data->DstPort, Clone(buf + sizeof(USHORT), payload_size), payload_size);
 		packet->Type = OPENVPN_PROTOCOL_TCP;
 		Add(server->RecvPacketList, packet);
 	}
@@ -681,10 +678,12 @@ void OvsProceccRecvPacket(OPENVPN_SERVER *s, UDPPACKET *p)
 			{
 				// Decrypt
 				size = OvsDecrypt(c->CipherDecrypt, c->MdRecv, c->IvRecv, data, recv_packet->Data, recv_packet->DataSize);
-
-				// Seek buffer after the packet ID
-				data += sizeof(UINT);
-				size -= sizeof(UINT);
+				if (size > sizeof(UINT))
+				{
+					// Seek buffer after the packet ID
+					data += sizeof(UINT);
+					size -= sizeof(UINT);
+				}
 			}
 
 			// Update of last communication time
@@ -821,7 +820,7 @@ void OvsProcessRecvControlPacket(OPENVPN_SERVER *s, OPENVPN_SESSION *se, OPENVPN
 
 		case OPENVPN_P_CONTROL_HARD_RESET_CLIENT_V2:
 			// New connection (hard reset)
-			OvsSendControlPacket(c, OPENVPN_P_CONTROL_HARD_RESET_SERVER_V2, NULL, 0);
+			OvsSendControlPacketEx(c, OPENVPN_P_CONTROL_HARD_RESET_SERVER_V2, NULL, 0, true);
 
 			c->Status = OPENVPN_CHANNEL_STATUS_TLS_WAIT_CLIENT_KEY;
 			break;
@@ -1070,6 +1069,8 @@ void OvsBeginIPCAsyncConnectionIfEmpty(OPENVPN_SERVER *s, OPENVPN_SESSION *se, O
 				p.ClientCertificate = c->ClientCert.X;
 			}
 		}
+
+		p.Layer = (se->Mode == OPENVPN_MODE_L2) ? IPC_LAYER_2 : IPC_LAYER_3;
 
 		// Calculate the MSS
 		p.Mss = OvsCalcTcpMss(s, se, c);
@@ -1551,6 +1552,10 @@ void OvsSendControlPacketWithAutoSplit(OPENVPN_CHANNEL *c, UCHAR opcode, UCHAR *
 // Send the control packet
 void OvsSendControlPacket(OPENVPN_CHANNEL *c, UCHAR opcode, UCHAR *data, UINT data_size)
 {
+	OvsSendControlPacketEx(c, opcode, data, data_size, false);
+}
+void OvsSendControlPacketEx(OPENVPN_CHANNEL *c, UCHAR opcode, UCHAR *data, UINT data_size, bool no_resend)
+{
 	OPENVPN_CONTROL_PACKET *p;
 	// Validate arguments
 	if (c == NULL || (data_size != 0 && data == NULL))
@@ -1559,6 +1564,8 @@ void OvsSendControlPacket(OPENVPN_CHANNEL *c, UCHAR opcode, UCHAR *data, UINT da
 	}
 
 	p = ZeroMalloc(sizeof(OPENVPN_CONTROL_PACKET));
+
+	p->NoResend = no_resend;
 
 	p->OpCode = opcode;
 	p->PacketId = c->NextSendPacketId++;
@@ -2557,20 +2564,25 @@ void OvsRecvPacket(OPENVPN_SERVER *s, LIST *recv_packet_list)
 
 					if (cp->NextSendTime <= s->Now)
 					{
-						OPENVPN_PACKET *p;
+						if (cp->NoResend == false || cp->NumSent == 0) // To address the UDP reflection amplification attack: https://github.com/SoftEtherVPN/SoftEtherVPN/issues/1001
+						{
+							OPENVPN_PACKET *p;
 
-						num = OvsGetAckReplyList(c, acks);
+							cp->NumSent++;
 
-						p = OvsNewControlPacket(cp->OpCode, j, se->ServerSessionId, num, acks,
-							se->ClientSessionId, cp->PacketId, cp->DataSize, cp->Data);
+							num = OvsGetAckReplyList(c, acks);
 
-						OvsSendPacketNow(s, se, p);
+							p = OvsNewControlPacket(cp->OpCode, j, se->ServerSessionId, num, acks,
+								se->ClientSessionId, cp->PacketId, cp->DataSize, cp->Data);
 
-						OvsFreePacket(p);
+							OvsSendPacketNow(s, se, p);
 
-						cp->NextSendTime = s->Now + (UINT64)OPENVPN_CONTROL_PACKET_RESEND_INTERVAL;
+							OvsFreePacket(p);
 
-						AddInterrupt(s->Interrupt, cp->NextSendTime);
+							cp->NextSendTime = s->Now + (UINT64)OPENVPN_CONTROL_PACKET_RESEND_INTERVAL;
+
+							AddInterrupt(s->Interrupt, cp->NextSendTime);
+						}
 					}
 				}
 
