@@ -2017,8 +2017,11 @@ bool ServerAccept(CONNECTION *c)
 
 				if (auth_ret == false)
 				{
+					// Get client IP to feed tools such as Fail2Ban
+					char ip[64];
+					IPToStr(ip, sizeof(ip), &c->FirstSock->RemoteIP);
 					// Authentication failure
-					HLog(hub, "LH_AUTH_NG", c->Name, username);
+					HLog(hub, "LH_AUTH_NG", c->Name, username, ip);
 				}
 				else
 				{
@@ -4621,7 +4624,7 @@ REDIRECTED:
 		UINT use_port = 0;
 		UINT current_port = c->ServerPort;
 		UCHAR ticket[SHA1_SIZE];
-		X *server_cert;
+		X *server_cert = NULL;
 		BUF *b;
 
 		// Redirect mode
