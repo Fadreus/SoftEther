@@ -1,6 +1,6 @@
 // SoftEther VPN Source Code - Developer Edition Master Branch
 // Cedar Communication Module
-
+// © 2020 Nokia
 
 // Protocol.c
 // SoftEther protocol related routines
@@ -5008,15 +5008,9 @@ REDIRECTED:
 	}
 
 	PrintStatus(sess, _UU("STATUS_9"));
-
 #ifdef OS_UNIX
-	// Set TUN up if session has NicDownOnDisconnect set
-	if (c->Session->NicDownOnDisconnect != NULL)
-	{
-		UnixVLanSetState(c->Session->ClientOption->DeviceName, true);
-	}
+	UnixVLanSetState(c->Session->ClientOption->DeviceName, true);
 #endif
-
 	// Shift the connection to the tunneling mode
 	StartTunnelingMode(c);
 	s = NULL;
@@ -5517,6 +5511,20 @@ bool ClientUploadAuth(CONNECTION *c)
 			}
 			break;
 
+		case CLIENT_AUTHTYPE_OPENSSLENGINE:
+			// Certificate authentication
+			if (a->ClientX != NULL && a->ClientX->is_compatible_bit &&
+				a->ClientX->bits != 0 && (a->ClientX->bits / 8) <= sizeof(sign))
+			{
+				if (RsaSignEx(sign, c->Random, SHA1_SIZE, a->ClientK, a->ClientX->bits))
+				{
+					p = PackLoginWithCert(o->HubName, a->Username, a->ClientX, sign, a->ClientX->bits / 8);
+					c->ClientX = CloneX(a->ClientX);
+				}
+			}
+			break;
+
+
 		case CLIENT_AUTHTYPE_SECURE:
 			// Authentication by secure device
 			if (ClientSecureSign(c, sign, c->Random, &x))
@@ -5884,9 +5892,7 @@ bool ServerDownloadSignature(CONNECTION *c, char **error_detail_str)
 				}
 			}
 		}
-		else if (StrCmpi(h->Method, "SSTP_DUPLEX_POST") == 0 && (server->DisableSSTPServer == false || s->IsReverseAcceptedSocket
-			) &&
-			GetServerCapsBool(server, "b_support_sstp") && GetNoSstp() == false)
+		else if (StrCmpi(h->Method, "SSTP_DUPLEX_POST") == 0 && (ProtoEnabled(server->Proto, "SSTP") || s->IsReverseAcceptedSocket) && GetServerCapsBool(server, "b_support_sstp"))
 		{
 			// SSTP client is connected
 			c->WasSstp = true;
@@ -5897,7 +5903,7 @@ bool ServerDownloadSignature(CONNECTION *c, char **error_detail_str)
 				// Accept the SSTP connection
 				c->Type = CONNECTION_TYPE_OTHER;
 
-				sstp_ret = AcceptSstp(c);
+				sstp_ret = ProtoHandleConnection(server->Proto, s, "SSTP");
 
 				c->Err = ERR_DISCONNECTED;
 				FreeHttpHeader(h);

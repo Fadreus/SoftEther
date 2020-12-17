@@ -22,64 +22,6 @@ static volatile UINT global_server_flags[NUM_GLOBAL_SERVER_FLAGS] = {0};
 
 UINT vpn_global_parameters[NUM_GLOBAL_PARAMS] = {0};
 
-// Set the OpenVPN and SSTP setting
-void SiSetOpenVPNAndSSTPConfig(SERVER *s, OPENVPN_SSTP_CONFIG *c)
-{
-	// Validate arguments
-	if (s == NULL || c == NULL)
-	{
-		return;
-	}
-
-	Lock(s->OpenVpnSstpConfigLock);
-	{
-		// Save the settings
-		if (s->Cedar->Bridge || s->ServerType != SERVER_TYPE_STANDALONE)
-		{
-			s->DisableSSTPServer = true;
-			s->DisableOpenVPNServer = true;
-		}
-		else
-		{
-			s->DisableSSTPServer = !c->EnableSSTP;
-			s->DisableOpenVPNServer = !c->EnableOpenVPN;
-		}
-
-		s->Cedar->OpenVPNObfuscation = c->OpenVPNObfuscation;
-		StrCpy(s->Cedar->OpenVPNObfuscationMask, sizeof(s->Cedar->OpenVPNObfuscationMask), c->OpenVPNObfuscationMask);
-	}
-	Unlock(s->OpenVpnSstpConfigLock);
-}
-
-// Get the OpenVPN and SSTP setting
-void SiGetOpenVPNAndSSTPConfig(SERVER *s, OPENVPN_SSTP_CONFIG *c)
-{
-	// Validate arguments
-	if (s == NULL || c == NULL)
-	{
-		return;
-	}
-
-	Zero(c, sizeof(OPENVPN_SSTP_CONFIG));
-
-	Lock(s->OpenVpnSstpConfigLock);
-	{
-		if (s->DisableOpenVPNServer == false)
-		{
-			c->EnableOpenVPN = true;
-		}
-
-		if (s->DisableSSTPServer == false)
-		{
-			c->EnableSSTP = true;
-		}
-
-		c->OpenVPNObfuscation = s->Cedar->OpenVPNObfuscation;
-		StrCpy(c->OpenVPNObfuscationMask, sizeof(c->OpenVPNObfuscationMask), s->Cedar->OpenVPNObfuscationMask);
-	}
-	Unlock(s->OpenVpnSstpConfigLock);
-}
-
 // Get whether the number of user objects that are registered in the VPN Server is too many
 bool SiTooManyUserObjectsInServer(SERVER *s, bool oneMore)
 {
@@ -2477,27 +2419,14 @@ void SiLoadInitialConfiguration(SERVER *s)
 
 	if (s->Cedar->Bridge)
 	{
-		// SSTP, OpenVPN, and NAT traversal function can not be used in the bridge environment
+		// NAT traversal can not be used in the bridge environment
 		s->DisableNatTraversal = true;
-		s->DisableSSTPServer = true;
-		s->DisableOpenVPNServer = true;
 	}
 	else
 	{
-		OPENVPN_SSTP_CONFIG c;
-		Zero(&c, sizeof(c));
-
-		// Enable SSTP and OpenVPN by default
-		c.EnableSSTP = true;
-		c.EnableOpenVPN = true;
-
-		c.OpenVPNObfuscation = false;
-
 		// Disable VPN-over-ICMP and VPN-over-DNS by default
 		s->EnableVpnOverIcmp = false;
 		s->EnableVpnOverDns = false;
-
-		SiSetOpenVPNAndSSTPConfig(s, &c);
 
 		{
 			LIST *ports = s->PortsUDP;
@@ -5674,8 +5603,24 @@ void SiLoadServerCfg(SERVER *s, FOLDER *f)
 	c = s->Cedar;
 	Lock(c->lock);
 	{
-		OPENVPN_SSTP_CONFIG config;
-		FOLDER *syslog_f;
+		FOLDER *ff;
+		{
+			UINT i;
+			LIST *ports;
+
+			// Load and set UDP ports
+			CfgGetStr(f, "PortsUDP", tmp, sizeof(tmp));
+			NormalizeIntListStr(tmp, sizeof(tmp), tmp, true, ", ");
+
+			ports = StrToIntList(tmp, true);
+			for (i = 0; i < LIST_NUM(ports); ++i)
+			{
+				AddInt(s->PortsUDP, *(UINT *)LIST_DATA(ports, i));
+			}
+			ReleaseIntList(ports);
+
+			ProtoSetUdpPorts(s->Proto, s->PortsUDP);
+		}
 		{
 			RPC_KEEP k;
 
@@ -5721,18 +5666,25 @@ void SiLoadServerCfg(SERVER *s, FOLDER *f)
 		}
 
 		// syslog
-		syslog_f = CfgGetFolder(f, "SyslogSettings");
-		if (syslog_f != NULL && GetServerCapsBool(s, "b_support_syslog"))
+		ff = CfgGetFolder(f, "SyslogSettings");
+		if (ff != NULL && GetServerCapsBool(s, "b_support_syslog"))
 		{
 			SYSLOG_SETTING set;
 
 			Zero(&set, sizeof(set));
 
-			set.SaveType = CfgGetInt(syslog_f, "SaveType");
-			CfgGetStr(syslog_f, "HostName", set.Hostname, sizeof(set.Hostname));
-			set.Port = CfgGetInt(syslog_f, "Port");
+			set.SaveType = CfgGetInt(ff, "SaveType");
+			CfgGetStr(ff, "HostName", set.Hostname, sizeof(set.Hostname));
+			set.Port = CfgGetInt(ff, "Port");
 
 			SiSetSysLogSetting(s, &set);
+		}
+
+		// Proto
+		ff = CfgGetFolder(f, "Proto");
+		if (ff != NULL)
+		{
+			SiLoadProtoCfg(s->Proto, ff);
 		}
 
 		// Whether to disable the IPv6 listener
@@ -5774,33 +5726,6 @@ void SiLoadServerCfg(SERVER *s, FOLDER *f)
 #ifdef	OS_WIN32
 			MsSetEnableMinidump(false);
 #endif	// OS_WIN32
-		}
-
-		// Disable the SSTP server function
-		s->DisableSSTPServer = CfgGetBool(f, "DisableSSTPServer");
-
-		// Disable the OpenVPN server function
-		s->DisableOpenVPNServer = CfgGetBool(f, "DisableOpenVPNServer");
-
-		// OpenVPN Default Option String
-		if (CfgGetStr(f, "OpenVPNDefaultClientOption", tmp, sizeof(tmp)))
-		{
-			if (IsEmptyStr(tmp) == false)
-			{
-				StrCpy(c->OpenVPNDefaultClientOption,
-					sizeof(c->OpenVPNDefaultClientOption), tmp);
-			}
-		}
-
-		// OpenVPN Push a dummy IPv4 address on L2 mode
-		if (CfgIsItem(f, "OpenVPNPushDummyIPv4AddressOnL2Mode") == false)
-		{
-			// Default enable
-			c->OpenVPNPushDummyIPv4AddressOnL2Mode = true;
-		}
-		else
-		{
-			c->OpenVPNPushDummyIPv4AddressOnL2Mode = CfgGetBool(f, "OpenVPNPushDummyIPv4AddressOnL2Mode");
 		}
 
 		// Disable the NAT-traversal feature
@@ -5927,18 +5852,14 @@ void SiLoadServerCfg(SERVER *s, FOLDER *f)
 
 		if (s->ServerType != SERVER_TYPE_STANDALONE)
 		{
-			// SSTP, OpenVPN, and NAT traversal can not be used in a cluster environment
+			// NAT traversal can not be used in a cluster environment
 			s->DisableNatTraversal = true;
-			s->DisableSSTPServer = true;
-			s->DisableOpenVPNServer = true;
 		}
 
 		if (s->Cedar->Bridge)
 		{
-			// SSTP, OpenVPN, and NAT traversal function can not be used in the bridge environment
+			// NAT traversal function can not be used in the bridge environment
 			s->DisableNatTraversal = true;
-			s->DisableSSTPServer = true;
-			s->DisableOpenVPNServer = true;
 		}
 
 		if (CfgGetStr(f, "PortsUDP", tmp, sizeof(tmp)))
@@ -5966,23 +5887,6 @@ void SiLoadServerCfg(SERVER *s, FOLDER *f)
 			}
 			FreeToken(tokens);
 		}
-
-		// Apply the configuration of SSTP and OpenVPN
-		Zero(&config, sizeof(config));
-		config.EnableOpenVPN = !s->DisableOpenVPNServer;
-		config.EnableSSTP = !s->DisableSSTPServer;
-
-		config.OpenVPNObfuscation = CfgGetBool(f, "OpenVPNObfuscation");
-
-		if (CfgGetStr(f, "OpenVPNObfuscationMask", tmp, sizeof(tmp)))
-		{
-			if (IsEmptyStr(tmp) == false)
-			{
-				StrCpy(config.OpenVPNObfuscationMask, sizeof(config.OpenVPNObfuscationMask), tmp);
-			}
-		}
-
-		SiSetOpenVPNAndSSTPConfig(s, &config);
 
 		if (s->ServerType == SERVER_TYPE_FARM_MEMBER)
 		{
@@ -6026,6 +5930,9 @@ void SiLoadServerCfg(SERVER *s, FOLDER *f)
 		c->SslAcceptSettings.Tls_Disable1_0 = CfgGetBool(f, "Tls_Disable1_0");
 		c->SslAcceptSettings.Tls_Disable1_1 = CfgGetBool(f, "Tls_Disable1_1");
 		c->SslAcceptSettings.Tls_Disable1_2 = CfgGetBool(f, "Tls_Disable1_2");
+		c->SslAcceptSettings.Tls_Disable1_3 = CfgGetBool(f, "Tls_Disable1_3");
+		c->SslAcceptSettings.Override_Security_Level = CfgGetBool(f, "Override_Security_Level");
+		c->SslAcceptSettings.Override_Security_Level_Value = CfgGetInt(f, "Override_Security_Level_Value");
 
 		s->StrictSyslogDatetimeFormat = CfgGetBool(f, "StrictSyslogDatetimeFormat");
 
@@ -6168,7 +6075,7 @@ void SiWriteServerCfg(FOLDER *f, SERVER *s)
 
 	Lock(c->lock);
 	{
-		FOLDER *syslog_f;
+		FOLDER *ff;
 		Lock(s->Keep->lock);
 		{
 			KEEP *k = s->Keep;
@@ -6181,16 +6088,23 @@ void SiWriteServerCfg(FOLDER *f, SERVER *s)
 		Unlock(s->Keep->lock);
 
 		// syslog
-		syslog_f = CfgCreateFolder(f, "SyslogSettings");
-		if (syslog_f != NULL)
+		ff = CfgCreateFolder(f, "SyslogSettings");
+		if (ff != NULL)
 		{
 			SYSLOG_SETTING set;
 
 			SiGetSysLogSetting(s, &set);
 
-			CfgAddInt(syslog_f, "SaveType", set.SaveType);
-			CfgAddStr(syslog_f, "HostName", set.Hostname);
-			CfgAddInt(syslog_f, "Port", set.Port);
+			CfgAddInt(ff, "SaveType", set.SaveType);
+			CfgAddStr(ff, "HostName", set.Hostname);
+			CfgAddInt(ff, "Port", set.Port);
+		}
+
+		// Proto
+		ff = CfgCreateFolder(f, "Proto");
+		if (ff != NULL)
+		{
+			SiWriteProtoCfg(ff, s->Proto);
 		}
 
 		// IPv6 listener disable setting
@@ -6235,35 +6149,18 @@ void SiWriteServerCfg(FOLDER *f, SERVER *s)
 			{
 				// Disable the NAT-traversal feature
 				CfgAddBool(f, "DisableNatTraversal", s->DisableNatTraversal);
-
-				// Disable the SSTP server function
-				CfgAddBool(f, "DisableSSTPServer", s->DisableSSTPServer);
-
-				// Disable the OpenVPN server function
-				CfgAddBool(f, "DisableOpenVPNServer", s->DisableOpenVPNServer);
 			}
 		}
 
 		CfgAddBool(f, "DisableIPsecAggressiveMode", s->DisableIPsecAggressiveMode);
 
-		CfgAddStr(f, "OpenVPNDefaultClientOption", c->OpenVPNDefaultClientOption);
-
-		CfgAddBool(f, "OpenVPNPushDummyIPv4AddressOnL2Mode", c->OpenVPNPushDummyIPv4AddressOnL2Mode);
-
 		if (c->Bridge == false)
 		{
-			OPENVPN_SSTP_CONFIG config;
-
 			// VPN over ICMP
 			CfgAddBool(f, "EnableVpnOverIcmp", s->EnableVpnOverIcmp);
 
 			// VPN over DNS
 			CfgAddBool(f, "EnableVpnOverDns", s->EnableVpnOverDns);
-
-			SiGetOpenVPNAndSSTPConfig(s, &config);
-
-			CfgAddBool(f, "OpenVPNObfuscation", config.OpenVPNObfuscation);
-			CfgAddStr(f, "OpenVPNObfuscationMask", config.OpenVPNObfuscationMask);
 		}
 
 		// WebTimePage
@@ -6360,6 +6257,9 @@ void SiWriteServerCfg(FOLDER *f, SERVER *s)
 		CfgAddBool(f, "Tls_Disable1_0", c->SslAcceptSettings.Tls_Disable1_0);
 		CfgAddBool(f, "Tls_Disable1_1", c->SslAcceptSettings.Tls_Disable1_1);
 		CfgAddBool(f, "Tls_Disable1_2", c->SslAcceptSettings.Tls_Disable1_2);
+		CfgAddBool(f, "Tls_Disable1_3", c->SslAcceptSettings.Tls_Disable1_3);
+		CfgAddBool(f, "Override_Security_Level", c->SslAcceptSettings.Override_Security_Level);
+		CfgAddInt(f, "Override_Security_Level_Value", c->SslAcceptSettings.Override_Security_Level_Value);
 		CfgAddInt(f, "DhParamBits", c->DhParamBits);
 
 		// Disable session reconnect
@@ -6371,6 +6271,98 @@ void SiWriteServerCfg(FOLDER *f, SERVER *s)
 		CfgAddBool(f, "DisableJsonRpcWebApi", s->DisableJsonRpcWebApi);
 	}
 	Unlock(c->lock);
+}
+
+void SiLoadProtoCfg(PROTO *p, FOLDER *f)
+{
+	UINT i;
+
+	if (p == NULL || f == NULL)
+	{
+		return;
+	}
+
+	for (i = 0; i < LIST_NUM(p->Containers); ++i)
+	{
+		UINT j;
+		const PROTO_CONTAINER *container = LIST_DATA(p->Containers, i);
+		LIST *options = container->Options;
+		FOLDER *ff = CfgGetFolder(f, container->Name);
+		if (ff == NULL)
+		{
+			continue;
+		}
+
+		LockList(options);
+
+		for (j = 0; j < LIST_NUM(options); ++j)
+		{
+			PROTO_OPTION *option = LIST_DATA(options, j);
+			switch (option->Type)
+			{
+			case PROTO_OPTION_BOOL:
+				option->Bool = CfgGetBool(ff, option->Name);
+				break;
+			case PROTO_OPTION_STRING:
+			{
+				UINT size;
+				char buf[MAX_SIZE];
+				if (CfgGetStr(ff, option->Name, buf, sizeof(buf)) == false)
+				{
+					continue;
+				}
+
+				size = StrLen(buf) + 1;
+				option->String = ReAlloc(option->String, size);
+				StrCpy(option->String, size, buf);
+
+				break;
+			}
+			default:
+				Debug("SiLoadProtoCfg(): unhandled option type %u!\n", option->Type);
+			}
+		}
+
+		UnlockList(options);
+	}
+}
+
+void SiWriteProtoCfg(FOLDER *f, PROTO *p)
+{
+	UINT i;
+
+	if (f == NULL || p == NULL)
+	{
+		return;
+	}
+
+	for (i = 0; i < LIST_NUM(p->Containers); ++i)
+	{
+		UINT j;
+		const PROTO_CONTAINER *container = LIST_DATA(p->Containers, i);
+		LIST *options = container->Options;
+		FOLDER *ff = CfgCreateFolder(f, container->Name);
+
+		LockList(options);
+
+		for (j = 0; j < LIST_NUM(options); ++j)
+		{
+			const PROTO_OPTION *option = LIST_DATA(options, j);
+			switch (option->Type)
+			{
+				case PROTO_OPTION_BOOL:
+					CfgAddBool(ff, option->Name, option->Bool);
+					break;
+				case PROTO_OPTION_STRING:
+					CfgAddStr(ff, option->Name, option->String);
+					break;
+				default:
+					Debug("SiWriteProtoCfg(): unhandled option type %u!\n", option->Type);
+			}
+		}
+
+		UnlockList(options);
+	}
 }
 
 // Read the traffic information

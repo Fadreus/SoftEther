@@ -12,11 +12,7 @@
 #include <stddef.h>
 #include <stdio.h>
 
-// PenCore.dll related
 #define	PENCORE_DLL_NAME		"|PenCore.dll"
-// #define	PENCORE_DLL_NAME_X64	"|PenCore_x64.dll" // commonized to x86
-// #define	PENCORE_DLL_NAME_IA64	"|PenCore_ia64.dll" // commonized to x86
-
 
 //#define	USE_PROBE						// Use Probe
 
@@ -306,7 +302,7 @@ extern bool g_foreground;
 extern UINT64 kernel_status[NUM_KERNEL_STATUS];
 extern UINT64 kernel_status_max[NUM_KERNEL_STATUS];
 extern LOCK *kernel_status_lock[NUM_KERNEL_STATUS];
-extern BOOL kernel_status_inited;
+extern bool kernel_status_inited;
 
 // Kernel state operation macro
 #define	KS_LOCK(id)		LockKernelStatus(id)

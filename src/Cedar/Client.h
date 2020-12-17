@@ -1,6 +1,6 @@
 // SoftEther VPN Source Code - Developer Edition Master Branch
 // Cedar Communication Module
-
+// © 2020 Nokia
 
 // Client.h
 // Header of Client.c
@@ -36,8 +36,6 @@
 #define	CLIENT_NOTIFY_SERVICE_INSTANCENAME	GC_SW_SOFTETHER_PREFIX "vpnclient_uihelper"
 
 #define	CLIENT_WIN32_EXE_FILENAME			"vpnclient.exe"
-#define	CLIENT_WIN32_EXE_FILENAME_X64		"vpnclient_x64.exe"
-#define	CLIENT_WIN32_EXE_FILENAME_IA64		"vpnclient_ia64.exe"
 
 #define CLIENT_CUSTOM_INI_FILENAME			"$custom.ini"
 
@@ -90,7 +88,6 @@ struct CLIENT_CONFIG
 	UINT KeepConnectProtocol;				// Protocol
 	UINT KeepConnectInterval;				// Interval
 	bool NoChangeWcmNetworkSettingOnWindows8;	// Don't change the WCM network settings on Windows 8
-	bool NicDownOnDisconnect;				// Put NIC down on disconnect/connection loss and put it up again after connecting to VPN server
 };
 
 // Version acquisition
@@ -600,7 +597,6 @@ bool CtSetCommonProxySetting(CLIENT *c, INTERNET_SETTING *a);
 // Internal function prototype
 void CiSendGlobalPulse(CLIENT *c);
 void CiPulseRecvThread(THREAD *thread, void *param);
-char *CiGetVpnClientExeFileName();
 void CiServerThread(THREAD *t, void *param);
 void CiInitSaver(CLIENT *c);
 void CiFreeSaver(CLIENT *c);
