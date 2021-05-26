@@ -5,7 +5,22 @@
 // Proto_OpenVPN.c
 // OpenVPN protocol stack
 
-#include "CedarPch.h"
+#include "Proto_OpenVPN.h"
+
+#include "Cedar.h"
+#include "Connection.h"
+#include "IPC.h"
+#include "Logging.h"
+#include "Proto_EtherIP.h"
+#include "Proto_PPP.h"
+#include "Server.h"
+
+#include "Mayaqua/Internat.h"
+#include "Mayaqua/Memory.h"
+#include "Mayaqua/Object.h"
+#include "Mayaqua/Str.h"
+#include "Mayaqua/Table.h"
+#include "Mayaqua/Tick64.h"
 
 // Ping signature of the OpenVPN protocol
 static UCHAR ping_signature[] =
@@ -20,6 +35,7 @@ const PROTO_IMPL *OvsGetProtoImpl()
 	{
 		OvsName,
 		OvsOptions,
+		NULL,
 		OvsInit,
 		OvsFree,
 		OvsIsPacketForMe,
@@ -41,8 +57,10 @@ const PROTO_OPTION *OvsOptions()
 	{
 		{ .Name = "DefaultClientOption", .Type = PROTO_OPTION_STRING, .String = "dev-type tun,link-mtu 1500,tun-mtu 1500,cipher AES-128-CBC,auth SHA1,keysize 128,key-method 2,tls-client" },
 		{ .Name = "Obfuscation", .Type = PROTO_OPTION_BOOL, .Bool = false },
-		{ .Name = "ObfuscationMask", .Type = PROTO_OPTION_STRING, .String = ""},
+		{ .Name = "ObfuscationMask", .Type = PROTO_OPTION_STRING, .String = "" },
+		{ .Name = "PingSendInterval", .Type = PROTO_OPTION_UINT32, .UInt32 = 3000 },
 		{ .Name = "PushDummyIPv4AddressOnL2Mode", .Type = PROTO_OPTION_BOOL, .Bool = true },
+		{ .Name = "Timeout", .Type = PROTO_OPTION_UINT32, .UInt32 = 30000 },
 		{ .Name = NULL, .Type = PROTO_OPTION_UNKNOWN }
 	};
 
@@ -69,16 +87,17 @@ void OvsFree(void *param)
 }
 
 // Check whether it's an OpenVPN packet
-bool OvsIsPacketForMe(const PROTO_MODE mode, const UCHAR *data, const UINT size)
+bool OvsIsPacketForMe(const PROTO_MODE mode, const void *data, const UINT size)
 {
+	if (data == NULL || size < 2)
+	{
+		return false;
+	}
+
 	if (mode == PROTO_MODE_TCP)
 	{
-		if (data == NULL || size < 2)
-		{
-			return false;
-		}
-
-		if (data[0] == 0x00 && data[1] == 0x0E)
+		const UCHAR *raw = data;
+		if (raw[0] == 0x00 && raw[1] == 0x0E)
 		{
 			return true;
 		}
@@ -2327,8 +2346,8 @@ void OvsRecvPacket(OPENVPN_SERVER *s, LIST *recv_packet_list, UINT protocol)
 								// Return the PUSH_REPLY
 								Format(option_str, sizeof(option_str),
 								       "PUSH_REPLY,ping %u,ping-restart %u",
-								       (OPENVPN_PING_SEND_INTERVAL / 1000),
-								       (OPENVPN_RECV_TIMEOUT / 1000));
+								       s->PingSendInterval / 1000,
+								       s->Timeout / 1000);
 
 								if (se->Mode == OPENVPN_MODE_L3)
 								{
@@ -2735,11 +2754,10 @@ void OvsRecvPacket(OPENVPN_SERVER *s, LIST *recv_packet_list, UINT protocol)
 		{
 			if ((se->NextPingSendTick == 0) || (se->NextPingSendTick <= s->Now))
 			{
-				se->NextPingSendTick = s->Now + (UINT64)(OPENVPN_PING_SEND_INTERVAL);
+				se->NextPingSendTick = s->Now + s->PingSendInterval;
 
 				OvsSendDataPacket(latest_channel, latest_channel->KeyId, ++latest_channel->LastDataPacketId,
 				                  ping_signature, sizeof(ping_signature));
-				//Debug(".");
 
 				AddInterrupt(s->Interrupt, se->NextPingSendTick);
 			}
@@ -2750,7 +2768,7 @@ void OvsRecvPacket(OPENVPN_SERVER *s, LIST *recv_packet_list, UINT protocol)
 			is_disconnected = true;
 		}
 
-		if (se->Established && (s->Now >= (se->LastCommTick + (UINT64)OPENVPN_RECV_TIMEOUT)))
+		if (se->Established && (s->Now >= (se->LastCommTick + s->Timeout)))
 		{
 			is_disconnected = true;
 		}
@@ -2899,7 +2917,7 @@ int OvsCompareSessionList(void *p1, void *p2)
 		return 0;
 	}
 
-	i = CmpIpAddr(&s1->Protocol, &s2->Protocol);
+	i = Cmp(&s1->Protocol, &s2->Protocol, sizeof(s1->Protocol));
 	if (i != 0)
 	{
 		return i;
@@ -2960,9 +2978,17 @@ OPENVPN_SERVER *NewOpenVpnServer(const LIST *options, CEDAR *cedar, INTERRUPT_MA
 		{
 			s->ObfuscationMask = CopyStr(option->String);
 		}
+		else if (StrCmp(option->Name, "PingSendInterval") == 0)
+		{
+			s->PingSendInterval = option->UInt32;
+		}
 		else if (StrCmp(option->Name, "PushDummyIPv4AddressOnL2Mode") == 0)
 		{
 			s->PushDummyIPv4AddressOnL2Mode = option->Bool;
+		}
+		else if (StrCmp(option->Name, "Timeout") == 0)
+		{
+			s->Timeout = option->UInt32;
 		}
 	}
 

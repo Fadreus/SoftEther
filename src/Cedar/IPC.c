@@ -5,7 +5,22 @@
 // IPC.c
 // In-process VPN client module
 
-#include "CedarPch.h"
+#include "IPC.h"
+
+#include "Admin.h"
+#include "Cedar.h"
+#include "Client.h"
+#include "Connection.h"
+#include "Hub.h"
+#include "Protocol.h"
+#include "Radius.h"
+#include "Virtual.h"
+
+#include "Mayaqua/Memory.h"
+#include "Mayaqua/Object.h"
+#include "Mayaqua/Pack.h"
+#include "Mayaqua/Str.h"
+#include "Mayaqua/Tick64.h"
 
 // Extract the MS-CHAP v2 authentication information by parsing the password string
 bool ParseAndExtractMsChapV2InfoFromPassword(IPC_MSCHAP_V2_AUTHINFO *d, char *password)
@@ -226,8 +241,8 @@ IPC *NewIPCByParam(CEDAR *cedar, IPC_PARAM *param, UINT *error_code)
 	}
 
 	ipc = NewIPC(cedar, param->ClientName, param->Postfix, param->HubName,
-	             param->UserName, param->Password, error_code, &param->ClientIp,
-	             param->ClientPort, &param->ServerIp, param->ServerPort,
+	             param->UserName, param->Password, param->WgKey, error_code,
+	             &param->ClientIp, param->ClientPort, &param->ServerIp, param->ServerPort,
 	             param->ClientHostname, param->CryptName,
 	             param->BridgeMode, param->Mss, NULL, param->ClientCertificate, param->Layer);
 
@@ -235,13 +250,14 @@ IPC *NewIPCByParam(CEDAR *cedar, IPC_PARAM *param, UINT *error_code)
 }
 
 // Start a new IPC connection
-IPC *NewIPC(CEDAR *cedar, char *client_name, char *postfix, char *hubname, char *username, char *password,
+IPC *NewIPC(CEDAR *cedar, char *client_name, char *postfix, char *hubname, char *username, char *password, char *wg_key,
             UINT *error_code, IP *client_ip, UINT client_port, IP *server_ip, UINT server_port,
             char *client_hostname, char *crypt_name,
             bool bridge_mode, UINT mss, EAP_CLIENT *eap_client, X *client_certificate,
             UINT layer)
 {
 	IPC *ipc;
+	HUB *hub;
 	UINT dummy_int = 0;
 	SOCK *a;
 	SOCK *s;
@@ -297,9 +313,6 @@ IPC *NewIPC(CEDAR *cedar, char *client_name, char *postfix, char *hubname, char 
 	ipc->FlushList = NewTubeFlushList();
 
 	StrCpy(ipc->ClientHostname, sizeof(ipc->ClientHostname), client_hostname);
-	StrCpy(ipc->HubName, sizeof(ipc->HubName), hubname);
-	StrCpy(ipc->UserName, sizeof(ipc->UserName), username);
-	StrCpy(ipc->Password, sizeof(ipc->Password), password);
 
 	// Connect the in-process socket
 	s = ConnectInProc(a, client_ip, client_port, server_ip, server_port);
@@ -339,7 +352,11 @@ IPC *NewIPC(CEDAR *cedar, char *client_name, char *postfix, char *hubname, char 
 	FreePack(p);
 
 	// Upload the authentication data
-	if (client_certificate != NULL)
+	if (IsEmptyStr(wg_key) == false)
+	{
+		p = PackLoginWithWireGuardKey(wg_key);
+	}
+	else if (client_certificate != NULL)
 	{
 		p = PackLoginWithOpenVPNCertificate(hubname, username, client_certificate);
 	}
@@ -408,14 +425,14 @@ IPC *NewIPC(CEDAR *cedar, char *client_name, char *postfix, char *hubname, char 
 	info.ServerIpAddress = IPToUINT(&s->RemoteIP);
 	info.ServerPort = Endian32(s->RemotePort);
 	StrCpy(info.HubName, sizeof(info.HubName), hubname);
-	Copy(info.UniqueId, unique, 16);
+	Copy(info.UniqueId, unique, sizeof(info.UniqueId));
 	if (IsIP6(&s->LocalIP))
 	{
-		Copy(info.ClientIpAddress6, s->LocalIP.ipv6_addr, 16);
+		Copy(info.ClientIpAddress6, s->LocalIP.address, sizeof(info.ClientIpAddress6));
 	}
 	if (IsIP6(&s->RemoteIP))
 	{
-		Copy(info.ServerIpAddress6, s->RemoteIP.ipv6_addr, 16);
+		Copy(info.ServerIpAddress6, s->RemoteIP.address, sizeof(info.ServerIpAddress6));
 	}
 	OutRpcNodeInfo(p, &info);
 
@@ -465,6 +482,22 @@ IPC *NewIPC(CEDAR *cedar, char *client_name, char *postfix, char *hubname, char 
 
 	PackGetStr(p, "IpcHubName", ipc->HubName, sizeof(ipc->HubName));
 	Debug("IPC Hub Name: %s\n", ipc->HubName);
+
+	hub = GetHub(cedar, ipc->HubName);
+	if (hub != NULL)
+	{
+		UINTToIP(&ipc->DefaultGateway, hub->Option->DefaultGateway);
+		UINTToIP(&ipc->SubnetMask, hub->Option->DefaultSubnet);
+		GetBroadcastAddress4(&ipc->BroadcastAddress, &ipc->DefaultGateway, &ipc->SubnetMask);
+	}
+	else
+	{
+		ZeroIP4(&ipc->DefaultGateway);
+		ZeroIP4(&ipc->SubnetMask);
+		ZeroIP4(&ipc->BroadcastAddress);
+	}
+
+	ZeroIP4(&ipc->ClientIPAddress);
 
 	MacToStr(macstr, sizeof(macstr), ipc->MacAddress);
 
@@ -1377,23 +1410,23 @@ void IPCProcessL3EventsEx(IPC *ipc, UINT64 now)
 							{
 								ok = true;
 							}
-							else if (ip_dst.addr[0] == 255 && ip_dst.addr[1] == 255 &&
-							         ip_dst.addr[2] == 255 && ip_dst.addr[3] == 255)
-							{
-								ok = true;
-							}
-							else if (ip_dst.addr[0] >= 224 && ip_dst.addr[0] <= 239)
-							{
-								ok = true;
-							}
 							else
 							{
-								if (CmpIpAddr(&ipc->BroadcastAddress, &ip_dst) == 0)
+								const BYTE *ipv4 = IPV4(ip_dst.address);
+
+								if (ipv4[0] == 255 && ipv4[1] == 255 && ipv4[2] == 255 && ipv4[3] == 255)
 								{
 									ok = true;
 								}
-
-								if (IsZeroIP(&ipc->ClientIPAddress))
+								else if (ipv4[0] >= 224 && ipv4[1] <= 239)
+								{
+									ok = true;
+								}
+								else if (CmpIpAddr(&ipc->BroadcastAddress, &ip_dst) == 0)
+								{
+									ok = true;
+								}
+								else if (IsZeroIP(&ipc->ClientIPAddress))
 								{
 									// Client IP address is undetermined
 									ok = true;
@@ -1639,17 +1672,34 @@ void IPCSendIPv4(IPC *ipc, void *data, UINT size)
 		// Local Broadcast
 		is_broadcast = true;
 	}
-
-	if (ip_dst.addr[0] == 255 && ip_dst.addr[1] == 255 && ip_dst.addr[2] == 255 && ip_dst.addr[3] == 255)
+	else
 	{
-		// Global Broadcast
-		is_broadcast = true;
-	}
+		const BYTE *ipv4 = IPV4(ip_dst.address);
 
-	if (ip_dst.addr[0] >= 224 && ip_dst.addr[0] <= 239)
-	{
-		// IPv4 Multicast
-		is_broadcast = true;
+		if (ipv4[0] == 255 && ipv4[1] == 255 && ipv4[2] == 255 && ipv4[3] == 255)
+		{
+			// Global Broadcast
+			is_broadcast = true;
+		}
+		else if (ipv4[0] >= 224 && ipv4[0] <= 239)
+		{
+			// IPv4 Multicast
+			UCHAR dest[6];
+
+			// Per RFC 1112, multicast MAC address has the form 01-00-5E-00-00-00,
+			// where the lowest 23 bits are copied from the destination IP address.
+			dest[0] = 0x01;
+			dest[1] = 0x00;
+			dest[2] = 0x5e;
+			dest[3] = 0x7f & ipv4[1];
+			dest[4] = ipv4[2];
+			dest[5] = ipv4[3];
+
+			// Send
+			IPCSendIPv4WithDestMacAddr(ipc, data, size, dest);
+
+			return;
+		}
 	}
 
 	if (is_broadcast)
@@ -2059,13 +2109,12 @@ void IPCIPv6AssociateOnNDTEx(IPC *ipc, IP *ip, UCHAR *mac_address, bool isNeighb
 
 	addrType = GetIPAddrType6(ip);
 
-	if (addrType != IPV6_ADDR_LOCAL_UNICAST &&
-	        addrType != IPV6_ADDR_GLOBAL_UNICAST)
+	if (!(addrType & IPV6_ADDR_UNICAST))
 	{
 		return;
 	}
 
-	if (addrType == IPV6_ADDR_GLOBAL_UNICAST)
+	if (addrType & IPV6_ADDR_GLOBAL_UNICAST)
 	{
 		if (!IPCIPv6CheckUnicastFromRouterPrefix(ipc, ip, NULL))
 		{
@@ -2180,10 +2229,10 @@ bool IPCIPv6CheckExistingLinkLocal(IPC *ipc, UINT64 eui)
 	t.Name = ipc->HubName;
 
 	// Construct link local from eui
-	ZeroIP6(&i.Ip);
-	i.Ip.ipv6_addr[0] = 0xFE;
-	i.Ip.ipv6_addr[1] = 0x80;
-	Copy(&i.Ip.ipv6_addr[8], &eui, sizeof(UINT64));
+	Zero(&i.Ip, sizeof(i.Ip));
+	i.Ip.address[0] = 0xfe;
+	i.Ip.address[1] = 0x80;
+	Copy(&i.Ip.address[8], &eui, sizeof(eui));
 
 	h = Search(ipc->Cedar->HubList, &t);
 
@@ -2211,7 +2260,7 @@ void IPCIPv6AddRouterPrefixes(IPC *ipc, ICMPV6_OPTION_LIST *recvPrefix, UCHAR *m
 			for (j = 0; j < LIST_NUM(ipc->IPv6RouterAdvs); j++)
 			{
 				IPC_IPV6_ROUTER_ADVERTISEMENT *existingRA = LIST_DATA(ipc->IPv6RouterAdvs, j);
-				if (Cmp(&recvPrefix->Prefix[i]->Prefix, &existingRA->RoutedPrefix.ipv6_addr, sizeof(IPV6_ADDR)) == 0)
+				if (Cmp(&recvPrefix->Prefix[i]->Prefix, &existingRA->RoutedPrefix.address, sizeof(IPV6_ADDR)) == 0)
 				{
 					foundPrefix = true;
 					break;
@@ -2297,7 +2346,7 @@ UINT64 IPCIPv6GetServerEui(IPC *ipc)
 		// Generate the MAC address from the multicast address
 		destMacAddress[0] = 0x33;
 		destMacAddress[1] = 0x33;
-		Copy(&destMacAddress[2], &destIP.ipv6_addr[12], sizeof(UINT));
+		Copy(&destMacAddress[2], &destIP.address[12], sizeof(UINT));
 
 		IPToIPv6Addr(&destV6, &destIP);
 
@@ -2331,7 +2380,7 @@ UINT64 IPCIPv6GetServerEui(IPC *ipc)
 	if (LIST_NUM(ipc->IPv6RouterAdvs) > 0)
 	{
 		IPC_IPV6_ROUTER_ADVERTISEMENT *ra = LIST_DATA(ipc->IPv6RouterAdvs, 0);
-		Copy(&ipc->IPv6ServerEUI, &ra->RouterAddress.ipv6_addr[8], sizeof(UINT64));
+		Copy(&ipc->IPv6ServerEUI, &ra->RouterAddress.address[8], sizeof(ipc->IPv6ServerEUI));
 	}
 
 	// If it is still not defined, let's just generate something random
@@ -2384,10 +2433,10 @@ void IPCIPv6Send(IPC *ipc, void *data, UINT size)
 		// Constructing multicast MAC address based on destination IP address, then just fire and forget
 		destMac[0] = 0x33;
 		destMac[1] = 0x33;
-		destMac[2] = destAddr.ipv6_addr[12];
-		destMac[3] = destAddr.ipv6_addr[13];
-		destMac[4] = destAddr.ipv6_addr[14];
-		destMac[5] = destAddr.ipv6_addr[15];
+		destMac[2] = destAddr.address[12];
+		destMac[3] = destAddr.address[13];
+		destMac[4] = destAddr.address[14];
+		destMac[5] = destAddr.address[15];
 		IPCIPv6SendWithDestMacAddr(ipc, data, size, destMac);
 		return;
 	}
@@ -2567,23 +2616,16 @@ void IPCIPv6SendUnicast(IPC *ipc, void *data, UINT size, IP *next_ip)
 			// Generate the MAC address from the multicast address
 			BUF *neighborSolicit;
 			UCHAR destMacAddress[6];
-			IPV6_ADDR solicitAddress;
 
 			char tmp[MAX_SIZE];
 			UCHAR *copy;
 			BLOCK *blk;
 
-			Zero(&solicitAddress, sizeof(IPV6_ADDR));
-			Copy(&solicitAddress.Value[13], &header->DestAddress.Value[13], 3);
-			solicitAddress.Value[0] = 0xFF;
-			solicitAddress.Value[1] = 0x02;
-			solicitAddress.Value[11] = 0x01;
-			solicitAddress.Value[12] = 0xFF;
-
-			neighborSolicit = BuildICMPv6NeighborSoliciation(&header->SrcAddress, &solicitAddress, ipc->MacAddress, 0);
+			neighborSolicit = BuildICMPv6NeighborSoliciation(&header->SrcAddress, &header->DestAddress, ipc->MacAddress, 0, true);
 			destMacAddress[0] = 0x33;
 			destMacAddress[1] = 0x33;
-			Copy(&destMacAddress[2], &solicitAddress.Value[12], sizeof(UINT));
+			destMacAddress[2] = 0xFF;
+			Copy(&destMacAddress[3], &header->DestAddress.Value[13], 3);
 			IPCIPv6SendWithDestMacAddr(ipc, neighborSolicit->Buf, neighborSolicit->Size, destMacAddress);
 
 			FreeBuf(neighborSolicit);

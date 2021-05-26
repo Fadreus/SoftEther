@@ -4,22 +4,34 @@
 
 // BridgeUnix.c
 // Ethernet Bridge Program (for UNIX)
-//#define	BRIDGE_C
-//#define	UNIX_LINUX
 
-#include <GlobalConst.h>
+#ifdef OS_UNIX
 
-#ifdef	BRIDGE_C
+#include "BridgeUnix.h"
 
-#include <stdio.h>
-#include <stdlib.h>
+#include "Server.h"
+#include "VLanUnix.h"
+
+#include "Mayaqua/Cfg.h"
+#include "Mayaqua/FileIO.h"
+#include "Mayaqua/Memory.h"
+#include "Mayaqua/Object.h"
+#include "Mayaqua/Str.h"
+#include "Mayaqua/TcpIp.h"
+#include "Mayaqua/Unix.h"
+
 #include <string.h>
-#include <wchar.h>
-#include <stdarg.h>
-#include <time.h>
+
 #include <errno.h>
-#include <Mayaqua/Mayaqua.h>
-#include <Cedar/Cedar.h>
+#include <fcntl.h>
+
+#include <net/if.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+
+#ifndef UNIX_OPENBSD
+#include <net/ethernet.h>
+#endif
 
 #ifdef UNIX_SOLARIS
 #include <sys/sockio.h>
@@ -27,17 +39,18 @@
 
 #ifdef BRIDGE_PCAP
 #include <pcap.h>
-#endif // BRIDGE_PCAP
+#endif
 
 #ifdef BRIDGE_BPF
-#include <sys/ioctl.h>
+#include <ifaddrs.h>
 #include <net/bpf.h>
 #include <net/if_types.h>
 #include <net/if_dl.h>
-#include <ifaddrs.h>
-#endif // BRIDGE_BPF
+#endif
 
-#ifdef	UNIX_LINUX
+#ifdef UNIX_LINUX
+#include <linux/if_packet.h>
+
 struct my_tpacket_auxdata
 {
 	UINT tp_status;
@@ -2688,5 +2701,4 @@ void EthPutPacketLinuxIpRaw(ETH *e, void *data, UINT size)
 	Free(data);
 }
 
-
-#endif	// BRIDGE_C
+#endif

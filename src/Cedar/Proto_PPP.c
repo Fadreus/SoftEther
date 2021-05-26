@@ -5,7 +5,22 @@
 // Proto_PPP.c
 // PPP protocol stack
 
-#include "CedarPch.h"
+#include "Proto_PPP.h"
+
+#include "Account.h"
+#include "Cedar.h"
+#include "Connection.h"
+#include "Hub.h"
+#include "IPC.h"
+#include "Logging.h"
+#include "Proto_IPsec.h"
+#include "Radius.h"
+#include "Server.h"
+
+#include "Mayaqua/Memory.h"
+#include "Mayaqua/Object.h"
+#include "Mayaqua/Str.h"
+#include "Mayaqua/Tick64.h"
 
 // PPP main thread
 void PPPThread(THREAD *thread, void *param)
@@ -721,6 +736,12 @@ bool PPPProcessRetransmissions(PPP_SESSION *p)
 // Send the PPP Echo Request
 bool PPPSendEchoRequest(PPP_SESSION *p)
 {
+	// Validate arguments
+	if (p == NULL)
+	{
+		return false;
+	}
+
 	UINT64 now = Tick64();
 	if (p->NextEchoSendTime == 0 || now >= p->NextEchoSendTime)
 	{
@@ -731,12 +752,6 @@ bool PPPSendEchoRequest(PPP_SESSION *p)
 		if (IsIPCConnected(p->Ipc))
 		{
 			AddInterrupt(p->Ipc->Interrupt, p->NextEchoSendTime);
-		}
-
-		// Validate arguments
-		if (p == NULL)
-		{
-			return false;
 		}
 
 		pp = ZeroMalloc(sizeof(PPP_PACKET));
@@ -1519,7 +1534,7 @@ bool PPPProcessPAPRequestPacket(PPP_SESSION *p, PPP_PACKET *pp)
 								// Attempt to connect with IPC
 								UINT error_code;
 
-								ipc = NewIPC(p->Cedar, p->ClientSoftwareName, p->Postfix, hub, id, password,
+								ipc = NewIPC(p->Cedar, p->ClientSoftwareName, p->Postfix, hub, id, password, NULL,
 								             &error_code, &p->ClientIP, p->ClientPort, &p->ServerIP, p->ServerPort,
 								             p->ClientHostname, p->CryptName, false, p->AdjustMss, NULL, NULL,
 								             IPC_LAYER_3);
@@ -2573,10 +2588,6 @@ PPP_PACKET *ParsePPPPacket(void *data, UINT size)
 	buf = (UCHAR *)data;
 
 	// Address
-	if (size < 1)
-	{
-		goto LABEL_ERROR;
-	}
 	if (buf[0] != 0xff)
 	{
 		goto LABEL_ERROR;
@@ -2848,7 +2859,7 @@ bool PPPParseMSCHAP2ResponsePacket(PPP_SESSION *p, PPP_PACKET *pp)
 			else if (p->Ipc == NULL)
 			{
 				Debug("MSCHAPv2 creating IPC\n");
-				ipc = NewIPC(p->Cedar, p->ClientSoftwareName, p->Postfix, hub, id, password,
+				ipc = NewIPC(p->Cedar, p->ClientSoftwareName, p->Postfix, hub, id, password, NULL,
 				             &error_code, &p->ClientIP, p->ClientPort, &p->ServerIP, p->ServerPort,
 				             p->ClientHostname, p->CryptName, false, p->AdjustMss, p->EapClient, NULL,
 				             +					IPC_LAYER_3);
@@ -3256,7 +3267,7 @@ bool PPPProcessEAPTlsResponse(PPP_SESSION *p, PPP_EAP *eap_packet, UINT eapTlsSi
 
 				PPPParseUsername(p->Cedar, p->Eap_Identity, &d);
 
-				ipc = NewIPC(p->Cedar, p->ClientSoftwareName, p->Postfix, d.HubName, d.UserName, "",
+				ipc = NewIPC(p->Cedar, p->ClientSoftwareName, p->Postfix, d.HubName, d.UserName, "", NULL,
 				             &error_code, &p->ClientIP, p->ClientPort, &p->ServerIP, p->ServerPort,
 				             p->ClientHostname, p->CryptName, false, p->AdjustMss, NULL, p->Eap_TlsCtx.ClientCert.X,
 				             IPC_LAYER_3);
@@ -3745,7 +3756,7 @@ bool PPPParseUsername(CEDAR *cedar, char *src_username, ETHERIP_ID *dst)
 	char src[MAX_SIZE];
 	// Validate arguments
 	Zero(dst, sizeof(ETHERIP_ID));
-	if (cedar == NULL || src == NULL || dst == NULL)
+	if (cedar == NULL || dst == NULL)
 	{
 		return false;
 	}

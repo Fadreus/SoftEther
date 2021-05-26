@@ -5,28 +5,28 @@
 // Internat.c
 // String conversion library for internationalization
 
-#include <GlobalConst.h>
+#include "Internat.h"
 
-#include <stdio.h>
+#include "Mayaqua.h"
+#include "Memory.h"
+#include "Network.h"
+#include "Object.h"
+#include "Str.h"
+#include "Tracking.h"
+#include "Win32.h"
+
 #include <stdlib.h>
-#include <string.h>
 #include <wchar.h>
-#include <stdarg.h>
-#include <time.h>
-#include <errno.h>
-#include <Mayaqua/Mayaqua.h>
+
+#ifdef OS_UNIX
+#include <iconv.h>
+#endif
 
 extern LOCK *token_lock;
 static char charset[MAX_SIZE] = "EUCJP";
 static LOCK *iconv_lock = NULL;
 void *iconv_cache_wide_to_str = 0;
 void *iconv_cache_str_to_wide = 0;
-
-// Initialize the string
-void ClearUniStr(wchar_t *str, UINT str_size)
-{
-	UniStrCpy(str, str_size, L"");
-}
 
 // Examine whether the string contains the specified character
 bool UniInChar(wchar_t *string, wchar_t c)
